@@ -19,11 +19,24 @@ export default async (request) => {
       body: JSON.stringify({ ...payload, secret }),
     });
     const raw = await upstream.text();
+    // Apps Script can prefix JSON with an XSSI guard. Keep a short, non-sensitive
+    // server-side trace so a deployment or access-page response can be diagnosed.
+    const normalized = raw.trim().replace(/^\)\]\}'\s*/, '');
+    console.info('Apps Script response', {
+      status: upstream.status,
+      contentType: upstream.headers.get('content-type'),
+      redirected: upstream.redirected,
+      finalUrl: upstream.url,
+      preview: normalized.slice(0, 300),
+    });
     let result;
     try {
-      result = JSON.parse(raw);
+      result = JSON.parse(normalized);
     } catch {
-      return json(502, { ok: false, error: 'The registration service returned an invalid response.' });
+      return json(502, {
+        ok: false,
+        error: 'The registration service returned an invalid response. Please contact the course coordinator.',
+      });
     }
 
     return json(result.ok ? 200 : 400, result);

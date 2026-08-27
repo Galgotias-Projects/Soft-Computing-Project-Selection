@@ -16,6 +16,7 @@ function doPost(e) {
     const p = body.project;
     const team = body.team;
     if (!p || !team || !team.name || !team.members || team.members.length < 3 || team.members.length > 4) return json({ok:false, error:'Complete all required team details.'});
+    if (team.members.some(m => !m.name || !m.email || !m.studentId || !m.github)) return json({ok:false, error:'Each listed member needs a name, university email, student ID, and GitHub username.'});
     const lock = LockService.getScriptLock();
     lock.waitLock(30000);
     try {
@@ -27,7 +28,7 @@ function doPost(e) {
       const members = team.members.concat([{}, {}, {}, {}]).slice(0,4);
       const row = [Utilities.getUuid(), new Date(), 'Reserved', p, values[index][1], Number(values[index][3]) + 1, team.name];
       members.forEach(m => row.push(m.name || '',m.email || '',m.studentId || '',m.github || ''));
-      row.push('', 'Confirmed', '');
+      row.push(team.repositoryUrl || '', team.consent ? 'Confirmed' : '', team.facultyNote || '');
       ss.getSheetByName(CONFIG.registrations).appendRow(row);
       SpreadsheetApp.flush();
       return json({ok:true, message:'Your team slot is reserved.', project:p});

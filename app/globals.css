@@ -123,6 +123,7 @@ button {
 }
 
 button:hover { border-color: var(--gu-red-dark); background: var(--gu-red-dark); transform: translateY(-1px); }
+button:disabled { cursor: wait; opacity: 0.72; transform: none; }
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #efb8bc; outline-offset: 2px; }
 
 .backdrop {
@@ -184,6 +185,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 .close:hover { background: transparent; color: var(--gu-red); transform: none; }
 .message { margin: 20px 0 0; padding: 12px 14px; border-left: 4px solid var(--gu-red); background: var(--gu-red-soft); color: #641016; }
+.message.success { border-color: #276749; background: #eefaf2; color: #1e5137; }
+.message.error { border-color: var(--gu-red); background: var(--gu-red-soft); color: #641016; }
 
 @media (max-width: 650px) {
   main { padding: 42px 17px; }

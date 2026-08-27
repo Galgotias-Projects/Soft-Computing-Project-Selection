@@ -1,9 +1,13 @@
 # Google Apps Script setup
 
 1. Open the tracker Sheet, then choose **Extensions → Apps Script**.
-2. Replace the default file with `Code.gs` in this folder.
-3. Replace `REPLACE_WITH_A_LONG_RANDOM_SECRET` with a long private random value. Do not put this secret in browser code; a Netlify Function will keep it private.
-4. Click **Deploy → New deployment → Web app**. Execute as **Me**; choose access appropriate to your students (normally **Anyone** only if the Netlify Function is the only caller).
-5. Authorize the script and copy its `/exec` URL. Add it to Netlify as `APPS_SCRIPT_URL` and add the matching secret as `APPS_SCRIPT_SECRET`.
+2. Replace the default file with the repository's `google-apps-script/Code.gs` content and save.
+3. Replace `REPLACE_WITH_A_LONG_RANDOM_SECRET` with a long private random value. Keep this value private: do not commit it or put it in browser code.
+4. Click **Deploy → New deployment → Web app**. Set **Execute as** to **Me** and **Who has access** to **Anyone**. Authorize the deployment, then copy the URL ending in `/exec`.
+5. In Netlify, open **Site configuration → Environment variables**. Add:
+   - `APPS_SCRIPT_URL` = the copied `/exec` URL
+   - `APPS_SCRIPT_SECRET` = the exact private value from `Code.gs`
+6. Go to **Deploys → Trigger deploy → Clear cache and deploy site**.
+7. Submit one test registration. A successful registration shows “has been reserved” and creates one new row in the `Registrations` tab.
 
-The script uses `LockService`, so simultaneous submissions cannot reserve a third team slot for the same project.
+The Netlify Function forwards the form data securely, keeping the secret out of the public browser bundle. The script uses `LockService`, so simultaneous submissions cannot over-allocate a project.

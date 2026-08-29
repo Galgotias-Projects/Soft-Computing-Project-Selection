@@ -166,6 +166,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 .form input:focus,
 .form textarea:focus { border-color: var(--gu-red); outline: none; box-shadow: 0 0 0 3px #f9dfe1; }
+.form input[readonly] { background: #faf7f7; color: #564c50; }
+.form-note { margin: 10px 0 20px; padding: 12px 14px; border-left: 4px solid var(--gu-red); background: #fff7f7; color: var(--muted); font-size: 0.88rem; line-height: 1.5; }
+.lookup-row { display: flex; align-items: end; gap: 9px; }
+.lookup-row input { min-width: 0; }
+.lookup-row .lookup { flex: 0 0 auto; margin: 6px 0 0; padding: 10px 12px; font-size: 0.84rem; white-space: nowrap; }
+.verified { margin: 15px 0 0; padding: 10px 12px; border-left: 4px solid #276749; background: #eefaf2; color: #1e5137; font-size: 0.88rem; font-weight: 700; line-height: 1.45; }
+.lookup-help { margin: 13px 0 0; color: var(--muted); font-size: 0.84rem; line-height: 1.45; }
 .form .check { color: var(--muted); font-size: 0.85rem; font-weight: 400; line-height: 1.4; }
 .check input { display: inline-block; width: auto; margin: 0 7px 0 0; accent-color: var(--gu-red); }
 .form form > button { margin-left: 0; }
@@ -192,4 +199,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   main { padding: 42px 17px; }
   .grid { grid-template-columns: 1fr; }
   .form { margin: 12px auto; padding: 25px 20px; }
+  .lookup-row { align-items: stretch; flex-direction: column; }
+  .lookup-row .lookup { width: 100%; margin-top: 0; }
 }

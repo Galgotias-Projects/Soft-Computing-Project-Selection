@@ -1,3 +1,5 @@
+import { postToAppsScript } from './apps-script.mjs';
+
 const json = (status, body) => Response.json(body, { status });
 const GITHUB_USERNAME = /^[A-Za-z\d](?:[A-Za-z\d-]{0,37}[A-Za-z\d])?$/;
 const githubChecks = new Map();
@@ -52,26 +54,13 @@ export default async (request) => {
       return json(400, { ok: false, error: `GitHub user “${missingGitHubUser.username}” could not be found. Enter the exact public GitHub username.` });
     }
 
-    const upstream = await fetch(scriptUrl, {
-      method: 'POST',
-      // Apps Script occasionally leaves a reused upstream connection open.
-      // Request a self-contained response for reliable serverless invocations.
-      headers: {
-        'content-type': 'text/plain;charset=utf-8',
-        connection: 'close',
-        'accept-encoding': 'identity',
-      },
-      body: JSON.stringify({ ...payload, secret }),
-    });
-    const raw = await upstream.text();
+    const upstream = await postToAppsScript(scriptUrl, { ...payload, secret });
+    const raw = upstream.raw;
     // Apps Script can prefix JSON with an XSSI guard. Keep a short, non-sensitive
     // server-side trace so a deployment or access-page response can be diagnosed.
     const normalized = raw.trim().replace(/^\)\]\}'\s*/, '');
     console.info('Apps Script response', {
       status: upstream.status,
-      contentType: upstream.headers.get('content-type'),
-      redirected: upstream.redirected,
-      finalUrl: upstream.url,
       preview: normalized.slice(0, 300),
     });
     let result;
@@ -84,7 +73,7 @@ export default async (request) => {
       });
     }
 
-    return json(result.ok ? 200 : 400, result);
+    return json(result.ok ? 200 : (upstream.status >= 500 ? 502 : 400), result);
   } catch (error) {
     console.error('Registration proxy failed:', error);
     return json(502, { ok: false, error: 'Unable to reach the registration service. Please try again.' });

@@ -1,3 +1,5 @@
+import { postToAppsScript } from './apps-script.mjs';
+
 const json = (status, body) => Response.json(body, { status });
 
 export default async (request) => {
@@ -18,18 +20,8 @@ export default async (request) => {
       return json(400, { ok: false, error: 'Enter an Enrollment No./PRN or admission number.' });
     }
 
-    const upstream = await fetch(scriptUrl, {
-      method: 'POST',
-      // Apps Script occasionally leaves a reused upstream connection open.
-      // Request a self-contained response for reliable serverless invocations.
-      headers: {
-        'content-type': 'text/plain;charset=utf-8',
-        connection: 'close',
-        'accept-encoding': 'identity',
-      },
-      body: JSON.stringify({ action: 'lookupStudent', identifier: cleanedIdentifier, secret }),
-    });
-    const raw = await upstream.text();
+    const upstream = await postToAppsScript(scriptUrl, { action: 'lookupStudent', identifier: cleanedIdentifier, secret });
+    const raw = upstream.raw;
     const normalized = raw.trim().replace(/^\)\]\}'\s*/, '');
     let result;
     try {
@@ -38,7 +30,7 @@ export default async (request) => {
       return json(502, { ok: false, error: 'The student-verification service returned an invalid response. Please contact the course coordinator.' });
     }
 
-    return json(result.ok ? 200 : 400, result);
+    return json(result.ok ? 200 : (upstream.status >= 500 ? 502 : 400), result);
   } catch (error) {
     console.error('Student lookup proxy failed:', error);
     return json(502, { ok: false, error: 'Unable to verify the student right now. Please try again.' });

@@ -54,7 +54,13 @@ export default async (request) => {
 
     const upstream = await fetch(scriptUrl, {
       method: 'POST',
-      headers: { 'content-type': 'text/plain;charset=utf-8' },
+      // Apps Script occasionally leaves a reused upstream connection open.
+      // Request a self-contained response for reliable serverless invocations.
+      headers: {
+        'content-type': 'text/plain;charset=utf-8',
+        connection: 'close',
+        'accept-encoding': 'identity',
+      },
       body: JSON.stringify({ ...payload, secret }),
     });
     const raw = await upstream.text();

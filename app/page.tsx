@@ -57,6 +57,7 @@ function Member({
   member,
   required,
   lookingUp,
+  checkingThisMember,
   onLookup,
   onIdentifierChange,
   onContactChange,
@@ -65,6 +66,7 @@ function Member({
   member: MemberData;
   required: boolean;
   lookingUp: boolean;
+  checkingThisMember: boolean;
   onLookup: () => void;
   onIdentifierChange: (value: string) => void;
   onContactChange: (field: MemberContactField, value: string) => void;
@@ -85,7 +87,7 @@ function Member({
             aria-label={`${label} enrollment or admission number`}
           />
           <button className="lookup" type="button" disabled={lookingUp || !member.identifier.trim()} onClick={onLookup}>
-            {lookingUp ? 'Checking…' : 'Find student'}
+            {checkingThisMember ? 'Checking…' : 'Find student'}
           </button>
         </div>
       </label>
@@ -245,10 +247,10 @@ export default function Home() {
             <form onSubmit={submit}>
               <label>Team name *<input name="teamName" required placeholder="Example: Fuzzy Pioneers" /></label>
               <p className="form-note">Start each member with their Enrollment No./PRN or admission number. The system fills the official name and section from the private approved-student directory; the server verifies the same details again when you submit.</p>
-              <Member index={0} member={members[0]} required lookingUp={lookingUp === 0} onLookup={() => lookupStudent(0)} onIdentifierChange={(identifier) => updateMember(0, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(0, { [field]: value })} />
-              <Member index={1} member={members[1]} required lookingUp={lookingUp === 1} onLookup={() => lookupStudent(1)} onIdentifierChange={(identifier) => updateMember(1, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(1, { [field]: value })} />
-              <Member index={2} member={members[2]} required lookingUp={lookingUp === 2} onLookup={() => lookupStudent(2)} onIdentifierChange={(identifier) => updateMember(2, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(2, { [field]: value })} />
-              <Member index={3} member={members[3]} required={false} lookingUp={lookingUp === 3} onLookup={() => lookupStudent(3)} onIdentifierChange={(identifier) => updateMember(3, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(3, { [field]: value })} />
+              <Member index={0} member={members[0]} required lookingUp={lookingUp !== null} checkingThisMember={lookingUp === 0} onLookup={() => lookupStudent(0)} onIdentifierChange={(identifier) => updateMember(0, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(0, { [field]: value })} />
+              <Member index={1} member={members[1]} required lookingUp={lookingUp !== null} checkingThisMember={lookingUp === 1} onLookup={() => lookupStudent(1)} onIdentifierChange={(identifier) => updateMember(1, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(1, { [field]: value })} />
+              <Member index={2} member={members[2]} required lookingUp={lookingUp !== null} checkingThisMember={lookingUp === 2} onLookup={() => lookupStudent(2)} onIdentifierChange={(identifier) => updateMember(2, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(2, { [field]: value })} />
+              <Member index={3} member={members[3]} required={false} lookingUp={lookingUp !== null} checkingThisMember={lookingUp === 3} onLookup={() => lookupStudent(3)} onIdentifierChange={(identifier) => updateMember(3, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(3, { [field]: value })} />
               <p className="form-note">Every public GitHub username is checked before reservation. Email addresses are checked for valid format and duplicate use; the official roster check prevents unapproved or vague student identities.</p>
               <label>Team repository URL (optional at registration)<input name="repositoryUrl" type="url" placeholder="https://github.com/..." /></label>
               <label>Faculty note (optional)<textarea name="facultyNote" rows={3} /></label>

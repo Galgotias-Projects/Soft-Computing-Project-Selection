@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 
 const projects = [
   ['SC01', 'Campus Climate & Energy Controller', 'Fuzzy + GA', 'SC01-Intelligent-Campus-Climate-&-Energy-Controller.pdf'],
@@ -20,6 +20,13 @@ const specificationsBase = 'https://github.com/Galgotias-Projects/Soft-Computing
 type Project = (typeof projects)[number];
 type Feedback = { kind: 'success' | 'error'; text: string };
 type RegistrationResult = { ok?: boolean; error?: string };
+type Capacity = {
+  id: string;
+  max: number;
+  reserved: number;
+  remaining: number;
+  availability: string;
+};
 type Student = {
   fullName: string;
   enrollmentNumber: string;
@@ -116,6 +123,33 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [lookingUp, setLookingUp] = useState<number | null>(null);
   const [members, setMembers] = useState<MemberData[]>(() => Array.from({ length: 4 }, () => ({ ...EMPTY_MEMBER })));
+  const [capacityByProject, setCapacityByProject] = useState<Record<string, Capacity>>({});
+  const [capacityStatus, setCapacityStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCapacity() {
+      try {
+        const response = await fetch('/.netlify/functions/project-capacity', { cache: 'no-store' });
+        const result = await response.json() as { ok?: boolean; projects?: Capacity[] };
+        if (!response.ok || !result.ok || !Array.isArray(result.projects)) throw new Error('Unable to load capacity.');
+
+        const nextCapacity = Object.fromEntries(
+          result.projects.filter((project) => project.id).map((project) => [project.id, project]),
+        );
+        if (active) {
+          setCapacityByProject(nextCapacity);
+          setCapacityStatus('ready');
+        }
+      } catch {
+        if (active) setCapacityStatus('error');
+      }
+    }
+
+    loadCapacity();
+    return () => { active = false; };
+  }, []);
 
   function updateMember(index: number, patch: Partial<MemberData>) {
     setMembers((current) => current.map((member, itemIndex) => itemIndex === index ? { ...member, ...patch } : member));
@@ -229,11 +263,27 @@ export default function Home() {
       <div className="grid">
         {projects.map((project) => (
           <section className="card" key={project[0]}>
-            <b>{project[0]}</b>
-            <h2>{project[1]}</h2>
-            <p>{project[2]} · <span className="tag">3 team slots</span></p>
-            <a href={specificationsBase + project[3]} target="_blank" rel="noreferrer">Read full specification ↗</a>
-            <button onClick={() => { setSelectedProject(project); setFeedback(null); }}>Register team</button>
+            {(() => {
+              const capacity = capacityByProject[project[0]];
+              const isFull = capacityStatus === 'ready' && (capacity?.remaining ?? 0) < 1;
+              const availability = capacityStatus === 'loading'
+                ? 'Checking availability…'
+                : capacityStatus === 'error'
+                  ? 'Live availability unavailable'
+                  : capacity
+                    ? `${capacity.remaining} of ${capacity.max} team slots available`
+                    : 'Live availability unavailable';
+
+              return (
+                <>
+                  <b>{project[0]}</b>
+                  <h2>{project[1]}</h2>
+                  <p>{project[2]} · <span className={`tag ${isFull ? 'full' : ''}`}>{isFull ? 'Project full' : availability}</span></p>
+                  <a href={specificationsBase + project[3]} target="_blank" rel="noreferrer">Read full specification ↗</a>
+                  <button disabled={capacityStatus === 'loading' || isFull} onClick={() => { setSelectedProject(project); setFeedback(null); }}>{isFull ? 'Project full' : 'Register team'}</button>
+                </>
+              );
+            })()}
           </section>
         ))}
       </div>

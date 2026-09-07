@@ -53,3 +53,7 @@ function request(urlValue, method, body, redirects = 0) {
 export function postToAppsScript(scriptUrl, payload) {
   return request(scriptUrl, 'POST', JSON.stringify(payload));
 }
+
+export function getFromAppsScript(scriptUrl) {
+  return request(scriptUrl, 'GET', '');
+}

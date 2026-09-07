@@ -98,7 +98,10 @@ main > p:not(.tag) {
   background: var(--gu-red-soft);
   font-size: 0.67rem;
   letter-spacing: 0.03em;
+  text-transform: none;
 }
+
+.card p .tag.full { background: #fbe4e5; color: #8f1017; }
 
 a {
   color: var(--gu-red);

@@ -3,6 +3,8 @@ import { postToAppsScript } from './apps-script.mjs';
 const json = (status, body) => Response.json(body, { status });
 const GITHUB_USERNAME = /^[A-Za-z\d](?:[A-Za-z\d-]{0,37}[A-Za-z\d])?$/;
 const githubChecks = new Map();
+const REGISTRATION_CLOSED = true;
+const REGISTRATION_CLOSED_MESSAGE = 'Registration deadline has passed. New registrations are no longer accepted.';
 
 async function githubUserExists(username) {
   const key = username.toLowerCase();
@@ -28,6 +30,9 @@ async function githubUserExists(username) {
 export default async (request) => {
   if (request.method !== 'POST') {
     return json(405, { ok: false, error: 'Method not allowed.' });
+  }
+  if (REGISTRATION_CLOSED) {
+    return json(403, { ok: false, error: REGISTRATION_CLOSED_MESSAGE });
   }
 
   const scriptUrl = process.env.APPS_SCRIPT_URL;

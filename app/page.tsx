@@ -16,6 +16,8 @@ const projects = [
 ] as const;
 
 const specificationsBase = 'https://github.com/Galgotias-Projects/Soft-Computing-Capstone-Projects/blob/main/project-briefs/';
+const REGISTRATION_CLOSED = true;
+const REGISTRATION_CLOSED_MESSAGE = 'Registration deadline has passed. New registrations are no longer accepted.';
 
 type Project = (typeof projects)[number];
 type Feedback = { kind: 'success' | 'error'; text: string };
@@ -68,6 +70,7 @@ function Member({
   onLookup,
   onIdentifierChange,
   onContactChange,
+  registrationClosed,
 }: {
   index: number;
   member: MemberData;
@@ -77,6 +80,7 @@ function Member({
   onLookup: () => void;
   onIdentifierChange: (value: string) => void;
   onContactChange: (field: MemberContactField, value: string) => void;
+  registrationClosed: boolean;
 }) {
   const number = index + 1;
   const label = number === 1 ? 'Team leader' : `Member ${number}`;
@@ -89,30 +93,31 @@ function Member({
         <div className="lookup-row">
           <input
             value={member.identifier}
+            disabled={registrationClosed}
             onChange={(event) => onIdentifierChange(event.currentTarget.value.toUpperCase().replace(/\s/g, ''))}
             placeholder="24131410010 or 24SCSE1410306"
             aria-label={`${label} enrollment or admission number`}
           />
-          <button className="lookup" type="button" disabled={lookingUp || !member.identifier.trim()} onClick={onLookup}>
+          <button className="lookup" type="button" disabled={registrationClosed || lookingUp || !member.identifier.trim()} onClick={onLookup}>
             {checkingThisMember ? 'Checking…' : 'Find student'}
           </button>
         </div>
       </label>
 
-      {member.verified && (
+      {(member.verified || registrationClosed) && (
         <>
-          <p className="verified">Verified: {member.fullName} · {member.section}</p>
+          {member.verified && <p className="verified">Verified: {member.fullName} · {member.section}</p>}
           <label>Full name<input value={member.fullName} readOnly /></label>
           <label>Admission number<input value={member.admissionNumber} readOnly /></label>
           <label>Enrollment No./PRN<input value={member.enrollmentNumber} readOnly /></label>
           <label>Section<input value={member.section} readOnly /></label>
-          <label>Email<input value={member.email} type="email" required={required} placeholder="name@example.com" onChange={(event) => onContactChange('email', event.currentTarget.value)} /></label>
-          <label>Phone number<input value={member.phone} required={required} inputMode="numeric" pattern="[0-9]{10}" title="Enter a 10-digit phone number" placeholder="10-digit phone number" onChange={(event) => onContactChange('phone', event.currentTarget.value.replace(/\D/g, '').slice(0, 10))} /></label>
-          <label>GitHub username<input value={member.github} required={required} minLength={2} maxLength={39} pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?" title="Enter only your public GitHub username, not a profile link" placeholder="your-github-username" onChange={(event) => onContactChange('github', event.currentTarget.value.trim())} /></label>
+          <label>Email<input value={member.email} disabled={registrationClosed} type="email" required={required} placeholder="name@example.com" onChange={(event) => onContactChange('email', event.currentTarget.value)} /></label>
+          <label>Phone number<input value={member.phone} disabled={registrationClosed} required={required} inputMode="numeric" pattern="[0-9]{10}" title="Enter a 10-digit phone number" placeholder="10-digit phone number" onChange={(event) => onContactChange('phone', event.currentTarget.value.replace(/\D/g, '').slice(0, 10))} /></label>
+          <label>GitHub username<input value={member.github} disabled={registrationClosed} required={required} minLength={2} maxLength={39} pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?" title="Enter only your public GitHub username, not a profile link" placeholder="your-github-username" onChange={(event) => onContactChange('github', event.currentTarget.value.trim())} /></label>
         </>
       )}
 
-      {!member.verified && <p className="lookup-help">Enter the official Enrollment No./PRN or admission number, then select <em>Find student</em>. Only approved students of Sections 32 and 33 can be added.</p>}
+      {!member.verified && !registrationClosed && <p className="lookup-help">Enter the official Enrollment No./PRN or admission number, then select <em>Find student</em>. Only approved students of Sections 32 and 33 can be added.</p>}
     </fieldset>
   );
 }
@@ -156,6 +161,7 @@ export default function Home() {
   }
 
   async function lookupStudent(index: number) {
+    if (REGISTRATION_CLOSED) return;
     const identifier = members[index].identifier.trim();
     if (!identifier) return;
 
@@ -182,6 +188,10 @@ export default function Home() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedProject) return;
+    if (REGISTRATION_CLOSED) {
+      setFeedback({ kind: 'error', text: REGISTRATION_CLOSED_MESSAGE });
+      return;
+    }
 
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -259,6 +269,10 @@ export default function Home() {
       <p className="tag">Galgotias University · 2026</p>
       <h1>Soft Computing Project Selection</h1>
       <p>Each team: 3–4 students · first come, first served · maximum 3 teams per project</p>
+      <section className="deadline-banner" role="status">
+        <strong>Registration deadline passed</strong>
+        <span>New registrations are closed. The form remains visible for reference, but entries and submissions are disabled.</span>
+      </section>
 
       <div className="grid">
         {projects.map((project) => (
@@ -280,7 +294,9 @@ export default function Home() {
                   <h2>{project[1]}</h2>
                   <p>{project[2]} · <span className={`tag ${isFull ? 'full' : ''}`}>{isFull ? 'Project full' : availability}</span></p>
                   <a href={specificationsBase + project[3]} target="_blank" rel="noreferrer">Read full specification ↗</a>
-                  <button disabled={capacityStatus === 'loading' || isFull} onClick={() => { setSelectedProject(project); setFeedback(null); }}>{isFull ? 'Project full' : 'Register team'}</button>
+                  <button disabled={!REGISTRATION_CLOSED && (capacityStatus === 'loading' || isFull)} onClick={() => { setSelectedProject(project); setFeedback(null); }}>
+                    {REGISTRATION_CLOSED ? 'Deadline passed — view form' : isFull ? 'Project full' : 'Register team'}
+                  </button>
                 </>
               );
             })()}
@@ -294,18 +310,19 @@ export default function Home() {
             <button className="close" type="button" onClick={() => setSelectedProject(null)} aria-label="Close registration form">×</button>
             <p className="tag">Registering for {selectedProject[0]}</p>
             <h2 id="registration-title">{selectedProject[1]}</h2>
+            <p className="closed-notice"><strong>Registration deadline passed.</strong> This form is retained for reference only and cannot accept entries.</p>
             <form onSubmit={submit}>
-              <label>Team name *<input name="teamName" required placeholder="Example: Fuzzy Pioneers" /></label>
+              <label>Team name *<input name="teamName" disabled={REGISTRATION_CLOSED} required placeholder="Example: Fuzzy Pioneers" /></label>
               <p className="form-note">Start each member with their Enrollment No./PRN or admission number. The system fills the official name and section from the private approved-student directory; the server verifies the same details again when you submit.</p>
-              <Member index={0} member={members[0]} required lookingUp={lookingUp !== null} checkingThisMember={lookingUp === 0} onLookup={() => lookupStudent(0)} onIdentifierChange={(identifier) => updateMember(0, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(0, { [field]: value })} />
-              <Member index={1} member={members[1]} required lookingUp={lookingUp !== null} checkingThisMember={lookingUp === 1} onLookup={() => lookupStudent(1)} onIdentifierChange={(identifier) => updateMember(1, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(1, { [field]: value })} />
-              <Member index={2} member={members[2]} required lookingUp={lookingUp !== null} checkingThisMember={lookingUp === 2} onLookup={() => lookupStudent(2)} onIdentifierChange={(identifier) => updateMember(2, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(2, { [field]: value })} />
-              <Member index={3} member={members[3]} required={false} lookingUp={lookingUp !== null} checkingThisMember={lookingUp === 3} onLookup={() => lookupStudent(3)} onIdentifierChange={(identifier) => updateMember(3, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(3, { [field]: value })} />
+              <Member index={0} member={members[0]} required lookingUp={lookingUp !== null} checkingThisMember={lookingUp === 0} onLookup={() => lookupStudent(0)} onIdentifierChange={(identifier) => updateMember(0, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(0, { [field]: value })} registrationClosed={REGISTRATION_CLOSED} />
+              <Member index={1} member={members[1]} required lookingUp={lookingUp !== null} checkingThisMember={lookingUp === 1} onLookup={() => lookupStudent(1)} onIdentifierChange={(identifier) => updateMember(1, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(1, { [field]: value })} registrationClosed={REGISTRATION_CLOSED} />
+              <Member index={2} member={members[2]} required lookingUp={lookingUp !== null} checkingThisMember={lookingUp === 2} onLookup={() => lookupStudent(2)} onIdentifierChange={(identifier) => updateMember(2, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(2, { [field]: value })} registrationClosed={REGISTRATION_CLOSED} />
+              <Member index={3} member={members[3]} required={false} lookingUp={lookingUp !== null} checkingThisMember={lookingUp === 3} onLookup={() => lookupStudent(3)} onIdentifierChange={(identifier) => updateMember(3, { ...EMPTY_MEMBER, identifier })} onContactChange={(field, value) => updateMember(3, { [field]: value })} registrationClosed={REGISTRATION_CLOSED} />
               <p className="form-note">Every public GitHub username is checked before reservation. Email addresses are checked for valid format and duplicate use; the official roster check prevents unapproved or vague student identities.</p>
-              <label>Team repository URL (optional at registration)<input name="repositoryUrl" type="url" placeholder="https://github.com/..." /></label>
-              <label>Faculty note (optional)<textarea name="facultyNote" rows={3} /></label>
-              <label className="check"><input name="consent" required type="checkbox" /> I confirm that all listed members agree to this registration and have read the project specification.</label>
-              <button type="submit" disabled={submitting}>{submitting ? 'Reserving…' : 'Reserve team slot'}</button>
+              <label>Team repository URL (optional at registration)<input name="repositoryUrl" disabled={REGISTRATION_CLOSED} type="url" placeholder="https://github.com/..." /></label>
+              <label>Faculty note (optional)<textarea name="facultyNote" disabled={REGISTRATION_CLOSED} rows={3} /></label>
+              <label className="check"><input name="consent" disabled={REGISTRATION_CLOSED} required type="checkbox" /> I confirm that all listed members agree to this registration and have read the project specification.</label>
+              <button type="submit" disabled={REGISTRATION_CLOSED || submitting}>{REGISTRATION_CLOSED ? 'Deadline passed' : submitting ? 'Reserving…' : 'Reserve team slot'}</button>
             </form>
             {feedback && <p className={`message ${feedback.kind}`}>{feedback.text}</p>}
           </section>

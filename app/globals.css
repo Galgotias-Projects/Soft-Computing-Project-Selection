@@ -55,6 +55,21 @@ main > p:not(.tag) {
   gap: 18px;
 }
 
+.deadline-banner {
+  display: grid;
+  gap: 5px;
+  margin: -10px 0 28px;
+  padding: 16px 18px;
+  border: 1px solid #e3aeb2;
+  border-left: 6px solid var(--gu-red);
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #641016;
+}
+
+.deadline-banner strong { font-size: 1.02rem; }
+.deadline-banner span { font-size: 0.92rem; line-height: 1.45; }
+
 .card {
   position: relative;
   min-height: 216px;
@@ -126,7 +141,7 @@ button {
 }
 
 button:hover { border-color: var(--gu-red-dark); background: var(--gu-red-dark); transform: translateY(-1px); }
-button:disabled { cursor: wait; opacity: 0.72; transform: none; }
+button:disabled { cursor: not-allowed; opacity: 0.72; transform: none; }
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #efb8bc; outline-offset: 2px; }
 
 .backdrop {
@@ -170,7 +185,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .form input:focus,
 .form textarea:focus { border-color: var(--gu-red); outline: none; box-shadow: 0 0 0 3px #f9dfe1; }
 .form input[readonly] { background: #faf7f7; color: #564c50; }
+.form input:disabled,
+.form textarea:disabled { cursor: not-allowed; background: #f2eeee; color: #776d71; opacity: 1; }
 .form-note { margin: 10px 0 20px; padding: 12px 14px; border-left: 4px solid var(--gu-red); background: #fff7f7; color: var(--muted); font-size: 0.88rem; line-height: 1.5; }
+.closed-notice { margin: 0 0 20px; padding: 13px 15px; border-left: 4px solid var(--gu-red); background: var(--gu-red-soft); color: #641016; font-size: 0.9rem; line-height: 1.5; }
 .lookup-row { display: flex; align-items: end; gap: 9px; }
 .lookup-row input { min-width: 0; }
 .lookup-row .lookup { flex: 0 0 auto; margin: 6px 0 0; padding: 10px 12px; font-size: 0.84rem; white-space: nowrap; }

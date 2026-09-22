@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Soft Computing Step 1 repository submission" />
+    <title>Soft Computing · Step 1 Submission</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="masthead">
+        <p class="eyebrow">Galgotias University · Soft Computing · 2026</p>
+        <h1>Step 1 Repository Submission</h1>
+        <p class="intro">The team leader submits the GitHub repository for the team’s Step 1 work. Your team and allocated project are verified automatically.</p>
+      </header>
+
+      <section class="deadline" id="deadline" role="status">
+        <strong>Deadline: 26 September 2026, 11:59 PM IST</strong>
+        <span>Submit a public GitHub repository link before the deadline. One submission per team; a later submission updates the same record.</span>
+      </section>
+
+      <section class="panel" aria-labelledby="form-title">
+        <div class="panel-heading">
+          <p class="step">Step 1 of 2</p>
+          <h2 id="form-title">Find your registered team</h2>
+          <p>Enter the <strong>team leader’s admission number</strong> exactly as it was used during project registration. Do not enter the admission number of another member.</p>
+        </div>
+
+        <form id="submission-form" novalidate>
+          <div class="lookup-row">
+            <label for="admission-number">
+              Team leader admission number
+              <input id="admission-number" name="admissionNumber" autocomplete="off" autocapitalize="characters" placeholder="24SCSE1410306" required />
+            </label>
+            <button class="secondary" id="lookup-button" type="button">Find my team</button>
+          </div>
+
+          <p class="help">After verification, these details are read-only and come directly from the project-registration tracker.</p>
+
+          <section class="team-details" id="team-details" aria-live="polite" hidden>
+            <div>
+              <span>Team leader</span>
+              <strong id="leader-name">—</strong>
+            </div>
+            <div>
+              <span>Team name</span>
+              <strong id="team-name">—</strong>
+            </div>
+            <div>
+              <span>Project</span>
+              <strong id="project-name">—</strong>
+            </div>
+          </section>
+
+          <label class="repository" for="repository-url">
+            Public GitHub repository URL
+            <input id="repository-url" name="repositoryUrl" type="url" inputmode="url" placeholder="https://github.com/your-team/your-project" disabled required />
+            <small>Paste the repository link, not a GitHub profile link. The repository must be publicly accessible.</small>
+          </label>
+
+          <button class="primary" id="submit-button" type="submit" disabled>Submit Step 1 repository</button>
+          <p class="feedback" id="feedback" role="alert" aria-live="assertive" hidden></p>
+        </form>
+      </section>
+
+      <section class="notes" aria-label="Before submitting">
+        <h2>Before you submit</h2>
+        <ul>
+          <li>Use the repository created for your allocated Soft Computing project.</li>
+          <li>Make the repository public so the submitted link can be reviewed.</li>
+          <li>Ensure your Step 1 work and meaningful commits are visible in the repository.</li>
+          <li>Only the team leader should submit; re-submitting replaces the team’s previous repository link.</li>
+        </ul>
+      </section>
+    </main>
+    <script src="app.js" defer></script>
+  </body>
+</html>

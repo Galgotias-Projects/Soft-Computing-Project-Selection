@@ -1,6 +1,6 @@
 import { postToAppsScript } from './apps-script.mjs';
 
-const DEADLINE = Date.parse('2026-09-26T23:59:59+05:30');
+const DEADLINE = Date.parse('2026-09-30T23:59:59+05:30');
 const REPOSITORY_URL = /^https:\/\/github\.com\/([A-Za-z\d](?:[A-Za-z\d-]{0,37}[A-Za-z\d])?)\/([A-Za-z\d._-]+)\/?$/i;
 const json = (status, body) => Response.json(body, {
   status,

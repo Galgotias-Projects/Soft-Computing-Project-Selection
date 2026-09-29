@@ -1,61 +1,9 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>GU Soft Computing | Project Dashboard</title>
-    <link rel="stylesheet" href="styles.css">
-  </head>
-  <body>
-    <main class="shell">
-      <header class="hero">
-        <p class="eyebrow">GALGOTIAS UNIVERSITY · SOFT COMPUTING · 2026</p>
-        <h1>My Capstone Dashboard</h1>
-        <p>One place to submit work, track deadlines, read evaluation feedback and plan your next action.</p>
-      </header>
-      <section id="lookup-card" class="card lookup-card">
-        <h2>Find your allocated team</h2>
-        <p>Only the registered team leader can view or update the team record.</p>
-        <form id="lookup-form">
-          <label>Team leader admission number<input id="admission-number" autocomplete="off" placeholder="24SCSE1410306" required></label>
-          <label>Team access code<input id="access-code" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="6-digit code" required></label>
-          <button id="open-dashboard" type="submit">Open my dashboard</button>
-        </form>
-        <p id="lookup-message" class="message" hidden></p>
-      </section>
-      <section id="dashboard" hidden>
-        <div class="team-heading">
-          <div><p class="eyebrow">YOUR ALLOCATED PROJECT</p><h2 id="project-title">—</h2><p id="team-summary">—</p></div>
-          <button id="sign-out" class="secondary">Use another team</button>
-        </div>
-        <section class="card timeline-card">
-          <h2>Milestone timeline</h2><div id="timeline" class="timeline"></div>
-        </section>
-        <section class="two-column">
-          <section class="card">
-            <h2 id="submission-heading">Submit or update work</h2>
-            <p id="submission-help">Choose a milestone above to submit its evidence.</p>
-            <form id="submission-form">
-              <input id="selected-step" type="hidden">
-              <label>Public GitHub repository URL<input id="repository-url" type="url" placeholder="https://github.com/owner/repository" required></label>
-              <label>Brief completion note<textarea id="submission-note" rows="4" maxlength="700" placeholder="State what the team completed and where it can be reviewed."></textarea></label>
-              <button id="submit-work" type="submit">Submit work</button>
-            </form>
-            <p id="submission-message" class="message" hidden></p>
-          </section>
-          <section class="card evaluation-card"><h2>Evaluation and feedback</h2><div id="evaluation">No published evaluation yet.</div></section>
-        </section>
-      </section>
-      <section class="card note-card">
-        <h2>Important</h2>
-        <ul>
-          <li>A later submission becomes the visible latest version; your earlier version remains in the teacher audit history.</li>
-          <li>Step 1 deadline: 26 September 2026, 11:59 PM IST. Late submission is currently accepted and is marked overdue.</li>
-          <li>Step 2 deadline: 4 October 2026, 11:59 PM IST.</li>
-          <li>Only public GitHub repository links can be submitted for review.</li>
-        </ul>
-      </section>
-    </main>
-    <script src="portal-config.js"></script><script src="app.js"></script>
-  </body>
-</html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>GU Soft Computing | Project Dashboard</title><link rel="stylesheet" href="styles.css"></head>
+<body><main class="shell">
+<header class="hero"><p class="eyebrow">GALGOTIAS UNIVERSITY · SOFT COMPUTING · 2026</p><h1>My Capstone Dashboard</h1><p>One place to submit work, track deadlines, read evaluation feedback and plan your next action.</p></header>
+<section class="card" aria-label="Student guides"><h2>Student guides</h2><p>Read the guide before starting a milestone. Step 1 has a separate beginner guide for every allocated project.</p><p><a href="https://github.com/Galgotias-Projects/Soft-Computing-Capstone-Projects#beginner-step-1-guides" target="_blank" rel="noopener"><strong>Step 1 guides:</strong> open the project-wise beginner guides</a></p><p><a href="https://github.com/Galgotias-Projects/Soft-Computing-Capstone-Projects/blob/main/guidelines/MILESTONE-2.md" target="_blank" rel="noopener"><strong>Step 2 guide:</strong> open the Step 2 process and requirements</a></p></section>
+<section id="lookup-card" class="card lookup-card"><h2>Find your allocated team</h2><p>Only the registered team leader can view or update the team record.</p><form id="lookup-form"><label>Team leader admission number<input id="admission-number" autocomplete="off" placeholder="24SCSE1410306" required></label><label>Team access code<input id="access-code" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="6-digit code" required></label><button id="open-dashboard" type="submit">Open my dashboard</button></form><p id="lookup-message" class="message" hidden></p></section>
+<section id="dashboard" hidden><div class="team-heading"><div><p class="eyebrow">YOUR ALLOCATED PROJECT</p><h2 id="project-title">—</h2><p id="team-summary">—</p></div><button id="sign-out" class="secondary">Use another team</button></div><section class="card timeline-card"><h2>Milestone timeline</h2><div id="timeline" class="timeline"></div></section><section class="two-column"><section class="card"><h2 id="submission-heading">Submit or update work</h2><p id="submission-help">Choose a milestone above to submit its evidence.</p><form id="submission-form"><input id="selected-step" type="hidden"><label>Public GitHub repository URL<input id="repository-url" type="url" placeholder="https://github.com/owner/repository" required></label><label>Brief completion note<textarea id="submission-note" rows="4" maxlength="700" placeholder="State what the team completed and where it can be reviewed."></textarea></label><button id="submit-work" type="submit">Submit work</button></form><p id="submission-message" class="message" hidden></p></section><section class="card evaluation-card"><h2>Evaluation and feedback</h2><div id="evaluation">No published evaluation yet.</div></section></section></section>
+<section class="card note-card"><h2>Important</h2><ul><li>A later submission becomes the visible latest version; your earlier version remains in the teacher audit history.</li><li>Step 1 deadline: 26 September 2026, 11:59 PM IST. Late submission is currently accepted and is marked overdue.</li><li>Step 2 deadline: 4 October 2026, 11:59 PM IST.</li><li>Only public GitHub repository links can be submitted for review.</li></ul></section>
+</main><script src="portal-config.js"></script><script src="app.js"></script></body></html>

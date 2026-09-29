@@ -53,16 +53,18 @@ function renderDashboard(data) {
 }
 
 $('#lookup-form').addEventListener('submit', async (event) => {
-  event.preventDefault(); message('#lookup-message', '');
+  event.preventDefault(); message('#lookup-message', 'Retrieving team details…', 'success');
+  const submitButton = $('#open-dashboard'); submitButton.disabled = true; submitButton.textContent = 'Retrieving…';
   state.admissionNumber = $('#admission-number').value.trim().replace(/\s/g, '').toUpperCase(); state.accessCode = $('#access-code').value.trim();
   try { const result = await api('portalLookup', state); $('#lookup-card').hidden = true; $('#dashboard').hidden = false; renderDashboard(result.dashboard); }
   catch (error) { message('#lookup-message', error.message); }
+  finally { submitButton.disabled = false; submitButton.textContent = 'Open my dashboard'; }
 });
 
 $('#submission-form').addEventListener('submit', async (event) => {
   event.preventDefault(); message('#submission-message', '');
   try {
-    const result = await api('submitMilestone', { admissionNumber: state.admissionNumber, accessCode: state.accessCode, step: state.selectedStep, repositoryUrl: $('#repository-url').value.trim(), commitUrl: $('#commit-url').value.trim(), note: $('#submission-note').value.trim() });
+    const result = await api('submitMilestone', { admissionNumber: state.admissionNumber, accessCode: state.accessCode, step: state.selectedStep, repositoryUrl: $('#repository-url').value.trim(), note: $('#submission-note').value.trim() });
     message('#submission-message', result.message, 'success'); renderDashboard(result.dashboard);
   } catch (error) { message('#submission-message', error.message); }
 });

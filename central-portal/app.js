@@ -30,7 +30,7 @@ function renderDashboard(data) {
   state.dashboard = data;
   $('#project-title').textContent = `${data.team.projectId} · ${data.team.projectTitle}`;
   $('#team-summary').textContent = `${data.team.teamName} · Leader: ${data.team.leaderName}`;
-  $('#repository-url').value = data.latestRepositoryUrl || '';
+  $('#repository-url').value = ''; // Always require a fresh repository URL for the selected step.
   const timeline = $('#timeline'); timeline.innerHTML = '';
   data.milestones.forEach((item) => {
     const button = document.createElement('button'); button.type = 'button'; button.className = `milestone ${item.step === state.selectedStep ? 'selected' : ''}`;

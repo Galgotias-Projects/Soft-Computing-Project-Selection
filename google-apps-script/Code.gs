@@ -1,6 +1,7 @@
 const CONFIG = {
   registrations: 'Registrations',
   capacity: 'Project Capacity',
+  stepOneSubmissions: 'Step 1 Submissions',
   studentDirectorySpreadsheetId: 'REPLACE_WITH_PRIVATE_STUDENT_DIRECTORY_ID',
   studentDirectorySheet: 'Students',
   secret: 'REPLACE_WITH_A_LONG_RANDOM_SECRET'
@@ -11,8 +12,10 @@ const PHONE_PATTERN = /^\d{10}$/;
 const ENROLLMENT_PATTERN = /^\d{11}$/;
 const ADMISSION_PATTERN = /^\d{2}[A-Z]{2,8}\d{5,8}$/;
 const GITHUB_PATTERN = /^[A-Za-z\d](?:[A-Za-z\d-]{0,37}[A-Za-z\d])?$/;
+const GITHUB_REPOSITORY_URL_PATTERN = /^https:\/\/github\.com\/[A-Za-z\d](?:[A-Za-z\d-]{0,37}[A-Za-z\d])?\/[A-Za-z\d._-]+\/?$/i;
 const PLACEHOLDER_PATTERN = /\b(test|demo|sample|dummy|unknown|none|n\/a)\b/i;
 const ALLOWED_SECTIONS = new Set(['Section-32', 'Section-33']);
+const STEP_ONE_DEADLINE = new Date('2026-09-30T23:59:59+05:30').getTime();
 
 function doGet() {
   const rows = SpreadsheetApp.getActive().getSheetByName(CONFIG.capacity).getDataRange().getValues();
@@ -22,13 +25,146 @@ function doGet() {
 function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents || '{}');
+    // Central GitHub Pages portal uses per-team access codes, not the legacy
+    // Netlify secret. Existing registration and Step 1 endpoints stay intact.
+    if (typeof centralPortalDispatch === 'function' && isCentralPortalAction(body.action)) {
+      return json(centralPortalDispatch(body));
+    }
     if (body.secret !== CONFIG.secret) return json({ ok: false, error: 'Unauthorized' });
     if (body.action === 'lookupStudent') return json(lookupStudent(body.identifier));
+    if (body.action === 'lookupStepOne') return json(lookupStepOne(body.admissionNumber));
+    if (body.action === 'submitStepOne') return json(submitStepOne(body));
     return json(registerTeam(body));
   } catch (err) {
     console.error(err);
     return json({ ok: false, error: 'The registration service could not complete this request. Please contact the course coordinator.' });
   }
+}
+
+function lookupStepOne(admissionNumber) {
+  const leader = getRegisteredTeamForLeader(admissionNumber);
+  if (!leader.ok) return leader;
+  return { ok: true, team: leader.team };
+}
+
+function submitStepOne(body) {
+  if (Date.now() > STEP_ONE_DEADLINE) {
+    return { ok: false, error: 'The Step 1 submission deadline has passed. Please contact the course coordinator.' };
+  }
+
+  const leader = getRegisteredTeamForLeader(body.admissionNumber);
+  if (!leader.ok) return leader;
+
+  const repositoryUrl = normaliseRepositoryUrl(body.repositoryUrl);
+  if (!GITHUB_REPOSITORY_URL_PATTERN.test(repositoryUrl)) {
+    return { ok: false, error: 'Enter the full public GitHub repository URL, for example https://github.com/owner/repository.' };
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const tracker = SpreadsheetApp.getActive().getSheetByName(CONFIG.stepOneSubmissions);
+    if (!tracker) return { ok: false, error: 'The Step 1 tracker is not available. Please contact the course coordinator.' };
+
+    const values = tracker.getDataRange().getDisplayValues();
+    const headers = values[0] || [];
+    const field = header => headers.indexOf(header);
+    const columns = {
+      submissionId: field('Submission ID'),
+      submittedAt: field('Submitted At'),
+      leaderAdmissionNumber: field('Leader Admission Number'),
+      leaderName: field('Leader Name'),
+      teamName: field('Team Name'),
+      projectId: field('Project ID'),
+      projectName: field('Project Name'),
+      repositoryUrl: field('Project GitHub Repository'),
+      status: field('Status')
+    };
+    if (Object.keys(columns).some(key => columns[key] < 0)) {
+      return { ok: false, error: 'The Step 1 tracker has an unexpected header row. Please contact the course coordinator.' };
+    }
+
+    const existingIndex = values.findIndex((row, index) => index && normaliseIdentifier(row[columns.leaderAdmissionNumber]) === leader.team.admissionNumber);
+    const row = [
+      existingIndex > 0 ? values[existingIndex][columns.submissionId] : Utilities.getUuid(),
+      new Date(),
+      leader.team.admissionNumber,
+      leader.team.leaderName,
+      leader.team.teamName,
+      leader.team.projectId,
+      leader.team.projectTitle,
+      repositoryUrl,
+      'Submitted'
+    ];
+
+    if (existingIndex > 0) {
+      tracker.getRange(existingIndex + 1, 1, 1, row.length).setValues([row]);
+    } else {
+      tracker.appendRow(row);
+    }
+    SpreadsheetApp.flush();
+
+    return {
+      ok: true,
+      message: existingIndex > 0
+        ? 'Your Step 1 repository submission has been updated.'
+        : 'Your Step 1 repository has been submitted successfully.'
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getRegisteredTeamForLeader(admissionNumber) {
+  const value = normaliseIdentifier(admissionNumber);
+  if (!ADMISSION_PATTERN.test(value)) {
+    return { ok: false, error: 'Enter your official admission number, for example 24SCSE1410306.' };
+  }
+
+  const registrations = SpreadsheetApp.getActive().getSheetByName(CONFIG.registrations);
+  if (!registrations) return { ok: false, error: 'The project-registration tracker is not available. Please contact the course coordinator.' };
+
+  const values = registrations.getDataRange().getDisplayValues();
+  const headers = values[0] || [];
+  const field = header => headers.indexOf(header);
+  const columns = {
+    status: field('Status'),
+    projectId: field('Project ID'),
+    projectTitle: field('Project Title'),
+    teamName: field('Team Name'),
+    leaderName: field('Leader Name'),
+    leaderAdmissionNumber: field('Leader Admission Number')
+  };
+  if (Object.keys(columns).some(key => columns[key] < 0)) {
+    return { ok: false, error: 'The project-registration tracker has an unexpected header row. Please contact the course coordinator.' };
+  }
+
+  const matches = values.slice(1).filter(row => {
+    const status = String(row[columns.status] || '').trim().toLowerCase();
+    return status !== 'cancelled' && status !== 'expired' && normaliseIdentifier(row[columns.leaderAdmissionNumber]) === value;
+  });
+  if (!matches.length) {
+    return { ok: false, error: 'This admission number is not registered as a team leader. Please enter the admission number used during project registration.' };
+  }
+  if (matches.length > 1) {
+    return { ok: false, error: 'More than one active team registration was found for this leader. Please contact the course coordinator.' };
+  }
+
+  const row = matches[0];
+  return {
+    ok: true,
+    team: {
+      admissionNumber: value,
+      leaderName: String(row[columns.leaderName] || '').trim(),
+      teamName: String(row[columns.teamName] || '').trim(),
+      projectId: String(row[columns.projectId] || '').trim(),
+      projectTitle: String(row[columns.projectTitle] || '').trim()
+    }
+  };
+}
+
+function normaliseRepositoryUrl(value) {
+  return String(value || '').trim().replace(/\/+$/, '');
 }
 
 function lookupStudent(identifier) {
@@ -126,10 +262,10 @@ function normaliseIdentifier(value) {
 }
 
 function validateContactDetails(members) {
-  if (members.some(member => !member.enrollmentNumber || !member.admissionNumber || !member.email || !member.phone || !member.github)) {
-    return 'Every listed member needs a verified Enrollment No./PRN, admission number, email, phone number, and GitHub username.';
+  if (members.some(member => !member.admissionNumber || !member.email || !member.phone || !member.github)) {
+    return 'Every listed member needs a verified admission number, email, phone number, and GitHub username.';
   }
-  if (members.some(member => !ENROLLMENT_PATTERN.test(member.enrollmentNumber) || !ADMISSION_PATTERN.test(member.admissionNumber))) {
+  if (members.some(member => (member.enrollmentNumber && !ENROLLMENT_PATTERN.test(member.enrollmentNumber)) || !ADMISSION_PATTERN.test(member.admissionNumber))) {
     return 'One or more official student identifiers is invalid.';
   }
   if (members.some(member => !EMAIL_PATTERN.test(member.email) || PLACEHOLDER_PATTERN.test(member.email))) {
@@ -153,16 +289,17 @@ function verifyRosterMembers(members) {
   const verified = [];
 
   for (const member of members) {
-    const byEnrollment = directory.byEnrollment.get(member.enrollmentNumber);
     const byAdmission = directory.byAdmission.get(member.admissionNumber);
-    if (!byEnrollment || !byAdmission || byEnrollment.admissionNumber !== byAdmission.admissionNumber) {
-      return { ok: false, error: 'Each member must match one approved student in Sections 32–33 using both official identifiers.' };
+    const byEnrollment = member.enrollmentNumber ? directory.byEnrollment.get(member.enrollmentNumber) : null;
+    if (!byAdmission || (member.enrollmentNumber && (!byEnrollment || byEnrollment.admissionNumber !== byAdmission.admissionNumber))) {
+      return { ok: false, error: 'Each member must match one approved student in Sections 32–33 using the official admission number and PRN where available.' };
     }
+    const rosterStudent = byEnrollment || byAdmission;
     verified.push({
-      fullName: byEnrollment.fullName,
-      enrollmentNumber: byEnrollment.enrollmentNumber,
-      admissionNumber: byEnrollment.admissionNumber,
-      section: byEnrollment.section,
+      fullName: rosterStudent.fullName,
+      enrollmentNumber: rosterStudent.enrollmentNumber,
+      admissionNumber: rosterStudent.admissionNumber,
+      section: rosterStudent.section,
       email: member.email,
       phone: member.phone,
       github: member.github
@@ -202,16 +339,16 @@ function getDirectoryIndex() {
     const enrollmentNumber = String(row[fields.enrollmentNumber] || '').replace(/\D/g, '');
     const admissionNumber = normaliseIdentifier(row[fields.admissionNumber]);
     const fullName = String(row[fields.fullName] || '').replace(/\s+/g, ' ').trim();
-    if (status !== 'Approved' || !ALLOWED_SECTIONS.has(section) || !ENROLLMENT_PATTERN.test(enrollmentNumber) || !ADMISSION_PATTERN.test(admissionNumber) || !fullName) return;
+    if (status !== 'Approved' || !ALLOWED_SECTIONS.has(section) || (enrollmentNumber && !ENROLLMENT_PATTERN.test(enrollmentNumber)) || !ADMISSION_PATTERN.test(admissionNumber) || !fullName) return;
     const student = { fullName, enrollmentNumber, admissionNumber, section };
-    byEnrollment.set(enrollmentNumber, student);
+    if (enrollmentNumber) byEnrollment.set(enrollmentNumber, student);
     byAdmission.set(admissionNumber, student);
   });
   return { byEnrollment, byAdmission };
 }
 
 function hasDuplicate(values) {
-  const cleaned = values.map(value => String(value).trim().toLowerCase());
+  const cleaned = values.map(value => String(value).trim().toLowerCase()).filter(Boolean);
   return new Set(cleaned).size !== cleaned.length;
 }
 

@@ -13,29 +13,24 @@
         <h1>My Capstone Dashboard</h1>
         <p>One place to submit work, track deadlines, read evaluation feedback and plan your next action.</p>
       </header>
-
       <section id="lookup-card" class="card lookup-card">
         <h2>Find your allocated team</h2>
         <p>Only the registered team leader can view or update the team record.</p>
         <form id="lookup-form">
           <label>Team leader admission number<input id="admission-number" autocomplete="off" placeholder="24SCSE1410306" required></label>
           <label>Team access code<input id="access-code" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="6-digit code" required></label>
-          <button type="submit">Open my dashboard</button>
+          <button id="open-dashboard" type="submit">Open my dashboard</button>
         </form>
         <p id="lookup-message" class="message" hidden></p>
       </section>
-
       <section id="dashboard" hidden>
         <div class="team-heading">
           <div><p class="eyebrow">YOUR ALLOCATED PROJECT</p><h2 id="project-title">—</h2><p id="team-summary">—</p></div>
           <button id="sign-out" class="secondary">Use another team</button>
         </div>
-
         <section class="card timeline-card">
-          <h2>Milestone timeline</h2>
-          <div id="timeline" class="timeline"></div>
+          <h2>Milestone timeline</h2><div id="timeline" class="timeline"></div>
         </section>
-
         <section class="two-column">
           <section class="card">
             <h2 id="submission-heading">Submit or update work</h2>
@@ -43,20 +38,14 @@
             <form id="submission-form">
               <input id="selected-step" type="hidden">
               <label>Public GitHub repository URL<input id="repository-url" type="url" placeholder="https://github.com/owner/repository" required></label>
-              <label>Commit URL or commit SHA <span>(recommended for Step 2)</span><input id="commit-url" placeholder="https://github.com/owner/repository/commit/..." ></label>
               <label>Brief completion note<textarea id="submission-note" rows="4" maxlength="700" placeholder="State what the team completed and where it can be reviewed."></textarea></label>
               <button id="submit-work" type="submit">Submit work</button>
             </form>
             <p id="submission-message" class="message" hidden></p>
           </section>
-
-          <section class="card evaluation-card">
-            <h2>Evaluation and feedback</h2>
-            <div id="evaluation">No published evaluation yet.</div>
-          </section>
+          <section class="card evaluation-card"><h2>Evaluation and feedback</h2><div id="evaluation">No published evaluation yet.</div></section>
         </section>
       </section>
-
       <section class="card note-card">
         <h2>Important</h2>
         <ul>
@@ -67,7 +56,6 @@
         </ul>
       </section>
     </main>
-    <script src="portal-config.js"></script>
-    <script src="app.js"></script>
+    <script src="portal-config.js"></script><script src="app.js"></script>
   </body>
 </html>

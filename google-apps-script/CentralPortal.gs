@@ -60,21 +60,40 @@ function portalTeam(admission, code) {
 }
 
 function portalSettings() { const rows=SpreadsheetApp.getActive().getSheetByName(PORTAL.settings).getDataRange().getDisplayValues(); return Object.fromEntries(rows.slice(1).map(r=>[r[0],r[1]])); }
+
+// Step 1 was collected before the central portal existed. Read the original
+// tracker as a fallback so already-submitted teams see their true status,
+// without duplicating or altering the original tracker records.
+function legacyStepOneSubmission(team) {
+  const sheet = SpreadsheetApp.getActive().getSheetByName('Step 1 Submissions');
+  if (!sheet || sheet.getLastRow() < 2) return null;
+  const rows = sheet.getDataRange().getDisplayValues(), h = rows[0], ix = n => h.indexOf(n);
+  const matches = rows.slice(1).filter(r => normaliseIdentifier(r[ix('Leader Admission Number')]) === team.admissionNumber);
+  if (!matches.length) return null;
+  const record = matches.sort((a, b) => new Date(b[ix('Submitted At')]).getTime() - new Date(a[ix('Submitted At')]).getTime())[0];
+  const submittedAt = new Date(record[ix('Submitted At')]);
+  const deadline = new Date('2026-09-26T23:59:59+05:30');
+  const lateDays = Math.max(0, Math.ceil((submittedAt.getTime() - deadline.getTime()) / 86400000));
+  return { repositoryUrl: record[ix('Project GitHub Repository')] || '', lateDays, status: lateDays ? 'SUBMITTED_LATE' : 'SUBMITTED' };
+}
+
 function portalDashboard(team) {
   const settings=portalSettings(), rows=SpreadsheetApp.getActive().getSheetByName(PORTAL.submissions).getDataRange().getDisplayValues(), h=rows[0], ix=n=>h.indexOf(n);
   const latest = step => rows.slice(1).filter(r=>r[ix('Team ID')]===team.id && r[ix('Step')]===step && r[ix('Latest')]==='TRUE')[0];
-  const milestone = (step,label) => { const deadline=new Date(settings[step+'_DEADLINE']), record=latest(step), now=Date.now(), overdue=Math.max(0,Math.ceil((now-deadline.getTime())/86400000)); return {step,label,deadlineDisplay:Utilities.formatDate(deadline,Session.getScriptTimeZone(),'dd MMM yyyy, hh:mm a'),overdueDays:overdue,lateDays:record?Number(record[ix('Late Days')]||0):0,status:record?record[ix('Status')]:'NOT_SUBMITTED',accepting:overdue===0 || settings[step+'_ACCEPT_LATE']==='TRUE'}; };
+  const step1 = latest('STEP_1');
+  const legacyStep1 = step1 ? null : legacyStepOneSubmission(team);
+  const milestone = (step,label) => { const deadline=new Date(settings[step+'_DEADLINE']), record=latest(step), fallback=step==='STEP_1'&&!record?legacyStep1:null, now=Date.now(), overdue=Math.max(0,Math.ceil((now-deadline.getTime())/86400000)); return {step,label,deadlineDisplay:Utilities.formatDate(deadline,Session.getScriptTimeZone(),'dd MMM yyyy, hh:mm a'),overdueDays:overdue,lateDays:record?Number(record[ix('Late Days')]||0):(fallback?fallback.lateDays:0),status:record?record[ix('Status')]:(fallback?fallback.status:'NOT_SUBMITTED'),accepting:overdue===0 || settings[step+'_ACCEPT_LATE']==='TRUE'}; };
   const evals=SpreadsheetApp.getActive().getSheetByName(PORTAL.evaluations).getDataRange().getDisplayValues(), eh=evals[0], ei=n=>eh.indexOf(n);
   const evaluationFor = step => {
     const er=evals.slice(1).find(r=>r[ei('Team ID')]===team.id && r[ei('Step')]===step && r[ei('Published')].toUpperCase()==='TRUE');
     return er?{published:true,status:er[ei('Status')],score:er[ei('Score')],comment:er[ei('Comment')],good:er[ei('What Is Good')],improve:er[ei('What To Improve')],nextAction:er[ei('Next Action')]}:{published:false};
   };
-  const step1=latest('STEP_1'); return {team,milestones:[milestone('STEP_1','Step 1'),milestone('STEP_2','Step 2')],latestRepositoryUrl:step1?step1[ix('Repository URL')]:'' ,evaluations:{STEP_1:evaluationFor('STEP_1'),STEP_2:evaluationFor('STEP_2')}};
+  return {team,milestones:[milestone('STEP_1','Step 1'),milestone('STEP_2','Step 2')],latestRepositoryUrl:step1?step1[ix('Repository URL')]:(legacyStep1?legacyStep1.repositoryUrl:'') ,evaluations:{STEP_1:evaluationFor('STEP_1'),STEP_2:evaluationFor('STEP_2')}};
 }
 
 function submitPortalMilestone(team, body) {
   const step=String(body.step||''); if (['STEP_1','STEP_2'].indexOf(step)<0) return {ok:false,error:'Only Step 1 and Step 2 are active.'};
   const url=normaliseRepositoryUrl(body.repositoryUrl); if (!GITHUB_REPOSITORY_URL_PATTERN.test(url)) return {ok:false,error:'Enter a complete public GitHub repository URL.'};
   const settings=portalSettings(), deadline=new Date(settings[step+'_DEADLINE']), lateDays=Math.max(0,Math.ceil((Date.now()-deadline.getTime())/86400000)); if(lateDays>0 && settings[step+'_ACCEPT_LATE']!=='TRUE') return {ok:false,error:'The Step '+(step==='STEP_1'?'1':'2')+' deadline has passed. Please contact the course coordinator.'};
-  const lock=LockService.getScriptLock(); lock.waitLock(30000); try { const sheet=SpreadsheetApp.getActive().getSheetByName(PORTAL.submissions), rows=sheet.getDataRange().getDisplayValues(), h=rows[0], ix=n=>h.indexOf(n), prior=rows.slice(1).filter(r=>r[ix('Team ID')]===team.id&&r[ix('Step')]===step&&r[ix('Latest')]==='TRUE'); prior.forEach(r=>sheet.getRange(rows.indexOf(r)+1,ix('Latest')+1).setValue('FALSE')); const version=prior.length?Number(prior[0][ix('Version')])+1:1; sheet.appendRow([Utilities.getUuid(),team.id,step,version,'TRUE',new Date(),deadline,lateDays,url,String(body.commitUrl||'').trim(),String(body.note||'').trim(),lateDays?'SUBMITTED_LATE':'SUBMITTED',team.admissionNumber]); SpreadsheetApp.getActive().getSheetByName(PORTAL.audit).appendRow([new Date(),team.id,'SUBMIT_'+step,'Version '+version]); return {ok:true,message:version>1?'Your updated version is now the latest submission.':'Your submission has been recorded.',dashboard:portalDashboard(team)}; } finally {lock.releaseLock();}
+  const lock=LockService.getScriptLock(); lock.waitLock(30000); try { const sheet=SpreadsheetApp.getActive().getSheetByName(PORTAL.submissions), rows=sheet.getDataRange().getDisplayValues(), h=rows[0], ix=n=>h.indexOf(n), prior=rows.slice(1).filter(r=>r[ix('Team ID')]===team.id&&r[ix('Step')]===step&&r[ix('Latest')]==='TRUE'); prior.forEach(r=>sheet.getRange(rows.indexOf(r)+1,ix('Latest')+1).setValue('FALSE')); const version=prior.length?Number(prior[0][ix('Version')])+1:1; sheet.appendRow([Utilities.getUuid(),team.id,step,version,'TRUE',new Date(),deadline,lateDays,url,'',String(body.note||'').trim(),lateDays?'SUBMITTED_LATE':'SUBMITTED',team.admissionNumber]); SpreadsheetApp.getActive().getSheetByName(PORTAL.audit).appendRow([new Date(),team.id,'SUBMIT_'+step,'Version '+version]); return {ok:true,message:version>1?'Your updated version is now the latest submission.':'Your submission has been recorded.',dashboard:portalDashboard(team)}; } finally {lock.releaseLock();}
 }

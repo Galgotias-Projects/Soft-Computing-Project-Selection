@@ -19,6 +19,7 @@ function dueText(item) {
   if (item.status === 'NEEDS_IMPROVEMENT') return 'Needs improvement';
   if (item.status === 'SUBMITTED_LATE') return `Submitted late · ${item.lateDays} day(s) overdue`;
   if (item.status === 'SUBMITTED') return 'Submitted · awaiting review';
+  if (!item.hasDeadline) return item.accepting ? 'Open for submission' : 'Not active yet';
   return item.overdueDays > 0 ? `Overdue by ${item.overdueDays} day(s)` : `Due ${item.deadlineDisplay}`;
 }
 

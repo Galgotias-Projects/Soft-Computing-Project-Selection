@@ -78,9 +78,9 @@ function renderDashboard(data) {
   state.selectedStep = selected.step;
   $('#selected-step').value = selected.step;
   $('#submission-heading').textContent = `Submit or update ${selected.label}`;
-  $('#submission-help').textContent = selected.accepting
+  $('#submission-help').textContent = selected.blockedReason || (selected.accepting
     ? (selected.status === 'NOT_SUBMITTED' ? 'Submit your first version.' : 'A new submission replaces the visible version while preserving the earlier version for the teacher.')
-    : 'This deadline has passed. Submissions are currently closed for this step.';
+    : 'This deadline has passed. Submissions are currently closed for this step.');
   $('#submit-work').disabled = !selected.accepting;
   const feedback = (data.evaluations || {})[selected.step] || {};
   $('#evaluation').innerHTML = feedback.published

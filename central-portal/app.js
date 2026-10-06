@@ -6,12 +6,47 @@ function message(selector, text, kind = 'error') {
   const element = $(selector); element.textContent = text; element.className = `message ${kind}`; element.hidden = !text;
 }
 
-async function api(action, payload = {}) {
+function api(action, payload = {}) {
   if (!config.apiUrl || config.apiUrl.includes('PASTE_YOUR')) throw new Error('The portal is being configured. Please contact the course coordinator.');
-  const response = await fetch(config.apiUrl, { method: 'POST', headers: { 'content-type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, ...payload }) });
-  const result = await response.json();
-  if (!response.ok || !result.ok) throw new Error(result.error || 'The portal service could not complete this request.');
-  return result;
+  return new Promise((resolve, reject) => {
+    const requestId = window.crypto && window.crypto.randomUUID
+      ? window.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const frame = document.createElement('iframe');
+    const form = document.createElement('form');
+    const input = document.createElement('input');
+    const timeout = window.setTimeout(() => finish(new Error('The portal service is taking longer than expected. Please retry.')), 30000);
+
+    function cleanup() {
+      window.clearTimeout(timeout);
+      window.removeEventListener('message', receive);
+      form.remove();
+      frame.remove();
+    }
+    function finish(error, result) {
+      cleanup();
+      if (error) reject(error); else resolve(result);
+    }
+    function receive(event) {
+      const data = event.data;
+      if (!data || data.source !== 'gu-central-portal' || data.requestId !== requestId) return;
+      const result = data.result || {};
+      if (!result.ok) return finish(new Error(result.error || 'The portal service could not complete this request.'));
+      finish(null, result);
+    }
+
+    frame.name = `portal-transport-${requestId}`;
+    frame.hidden = true;
+    form.method = 'post';
+    form.action = config.apiUrl;
+    form.target = frame.name;
+    input.name = 'payload';
+    input.value = JSON.stringify({ action, ...payload, transport: 'iframe', origin: window.location.origin, requestId });
+    form.append(input);
+    document.body.append(frame, form);
+    window.addEventListener('message', receive);
+    form.submit();
+  });
 }
 
 function dueText(item) {

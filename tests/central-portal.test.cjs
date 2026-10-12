@@ -4,6 +4,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'google-apps-script', 'CentralPortal.gs'), 'utf8');
+new vm.Script(fs.readFileSync(path.join(__dirname, '..', 'google-apps-script', 'Code.gs'), 'utf8'));
 const header = {
   teams: ['Team ID','Leader Admission Number','Leader Name','Team Name','Project ID','Project Name','Access Code','Active'],
   submissions: ['Submission ID','Team ID','Step','Version','Latest','Submitted At','Deadline','Late Days','Repository URL','Commit URL','Note','Status','Submitted By'],
@@ -71,6 +72,8 @@ assert.equal(submissions.rows[5][3],2);
 assert.equal(submissions.rows[5][4],'TRUE');
 assert.equal(again.dashboard.milestones.find(item=>item.step==='STEP_4').lateDays,0,'On-time first submission must remain on time');
 assert.equal(again.dashboard.evaluations.STEP_3.status,'ACCEPTED','Existing feedback remains available');
+sheet('Evaluation', [header.evaluations,[teamId,'STEP_4','NEEDS_IMPROVEMENT','','Compare with the baseline','','Add the comparison table','Update the repository','TRUE','']]);
+assert.equal(call('portalLookup').dashboard.evaluations.STEP_4.status,'NEEDS_IMPROVEMENT','Step 4 feedback maps through the existing Evaluation sheet');
 assert.equal(context.centralPortalDispatch({action:'portalLookup',admissionNumber:admission,accessCode:'000000'}).ok,false,'Wrong access code must be rejected');
 settings.rows.find(row=>row[0]==='STEP_4_DEADLINE')[1]='2026-10-01T23:59:59+05:30';
 const late = call('submitMilestone','STEP_4');

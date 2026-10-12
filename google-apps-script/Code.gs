@@ -23,12 +23,14 @@ function doGet() {
 }
 
 function doPost(e) {
+  let body = {};
   try {
-    const body = JSON.parse(e.postData.contents || '{}');
+    body = readPostBody(e);
     // Central GitHub Pages portal uses per-team access codes, not the legacy
     // Netlify secret. Existing registration and Step 1 endpoints stay intact.
     if (typeof centralPortalDispatch === 'function' && isCentralPortalAction(body.action)) {
-      return json(centralPortalDispatch(body));
+      const result = centralPortalDispatch(body);
+      return body.transport === 'iframe' ? portalFrameResponse(body, result) : json(result);
     }
     if (body.secret !== CONFIG.secret) return json({ ok: false, error: 'Unauthorized' });
     if (body.action === 'lookupStudent') return json(lookupStudent(body.identifier));
@@ -37,8 +39,27 @@ function doPost(e) {
     return json(registerTeam(body));
   } catch (err) {
     console.error(err);
-    return json({ ok: false, error: 'The registration service could not complete this request. Please contact the course coordinator.' });
+    const result = { ok: false, error: 'The registration service could not complete this request. Please contact the course coordinator.' };
+    return body.transport === 'iframe' ? portalFrameResponse(body, result) : json(result);
   }
+}
+
+function readPostBody(e) {
+  const raw = e && e.postData ? String(e.postData.contents || '') : '';
+  if (raw) {
+    try { return JSON.parse(raw); } catch (ignore) { /* Hidden forms put JSON in payload. */ }
+  }
+  const payload = e && e.parameter ? String(e.parameter.payload || '') : '';
+  return payload ? JSON.parse(payload) : {};
+}
+
+function portalFrameResponse(body, result) {
+  const origin = 'https://galgotias-projects.github.io';
+  const message = JSON.stringify({source:'gu-central-portal',requestId:String(body.requestId || ''),result})
+    .replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
+  const html = '<!doctype html><html><body><script>window.top.postMessage(' +
+    message + ',' + JSON.stringify(origin) + ');</script></body></html>';
+  return HtmlService.createHtmlOutput(html).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function lookupStepOne(admissionNumber) {

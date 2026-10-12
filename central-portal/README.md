@@ -12,8 +12,10 @@ This folder is the permanent GitHub Pages frontend for capstone mentoring. It is
 6. Replace the placeholder in `portal-config.js` with that `/exec` URL.
 7. Merge this branch into `main`, enable **Settings → Pages → Source: GitHub Actions**, then run the deployment workflow.
 
-The public dashboard exposes only the logged-in team’s own project, submissions and published feedback. It accepts only Step 1 and Step 2. The `Milestone Submissions` tab is append-only, so a re-submission updates the visible version without erasing history.
+The public dashboard exposes only the logged-in team’s own project, submissions and published feedback. It accepts Steps 1–4 in order. Step 4 is the baseline comparison and requires Step 3 to have been submitted. Its deadline is **20 October 2026, 11:59 PM IST**; late submissions remain open and are marked for later grading. The `Milestone Submissions` tab is append-only, so a re-submission updates the visible version without erasing history. The first submission date determines the displayed timeliness of each step.
+
+The Step 4 student instructions are in [`step-4-guide.html`](./step-4-guide.html). Run `npm run test:portal` before changing the Apps Script source. After editing the live `CentralPortal.gs`, update the existing web-app deployment to a **new version**; saving source alone does not update its `/exec` URL. The GitHub Pages frontend deploys from `central-portal/` through the repository workflow.
 
 ## Teacher evaluation workflow
 
-Add one row per team and step to the private `Evaluation` sheet. Use `Published=TRUE` only when feedback is ready for students. The current Step’s published evaluation appears to the team after their next dashboard refresh.
+Add one row per team and step to the private `Evaluation` sheet. Use `Published=TRUE` only when feedback is ready for students. Step 4 feedback uses the same table; no new evaluation tab is needed. The step’s published evaluation appears after the team's next dashboard refresh.

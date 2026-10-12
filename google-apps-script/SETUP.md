@@ -33,13 +33,15 @@ Do not change `Project Capacity`; its formulas continue to count each `Reserved`
 ## 3. Configure and deploy the Apps Script
 
 1. Open the tracker Sheet, then choose **Extensions → Apps Script**.
-2. Replace the default file with [`Code.gs`](./Code.gs), then save it.
+2. For a **new installation only**, replace the default file with [`Code.gs`](./Code.gs), then save it. This file is a sanitized registration template, not a backup of the live deployment.
 3. In `CONFIG`, replace:
    - `REPLACE_WITH_PRIVATE_STUDENT_DIRECTORY_ID` with the private student-directory spreadsheet ID (the value between `/d/` and `/edit` in its URL).
    - `REPLACE_WITH_A_LONG_RANDOM_SECRET` with a long random value.
 4. Update the web-app deployment to a **new version**. Keep **Execute as** set to **Me** and **Who has access** set to **Anyone**. Use the `/exec` URL.
 
 The private directory ID and the secret must never be committed to GitHub or placed in browser code.
+
+**Existing capstone installation:** do not replace its deployed `Code.gs` with this template. The live file also contains the GitHub Pages iframe response transport and private configuration. To enable or adjust Step 4, update only `CentralPortal.gs`, preserve `Code.gs`, then create a new version of the existing Apps Script deployment. Step 4 stores rows in the existing `Milestone Submissions` sheet and reads its deadline/activation from `Portal Settings`.
 
 ## 4. Configure Netlify
 

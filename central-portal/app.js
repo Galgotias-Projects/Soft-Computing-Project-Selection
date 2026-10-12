@@ -72,7 +72,7 @@ function renderDashboard(data) {
   data.milestones.forEach((item) => {
     const button = document.createElement('button'); button.type = 'button'; button.className = `milestone ${item.step === state.selectedStep ? 'selected' : ''}`;
     button.innerHTML = `<strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(dueText(item, (data.evaluations || {})[item.step]))}</span>`;
-    button.addEventListener('click', () => { state.selectedStep = item.step; renderDashboard(state.dashboard); });
+    button.addEventListener('click', () => { state.selectedStep = item.step; $('#submission-form').reset(); message('#submission-message', ''); renderDashboard(state.dashboard); });
     timeline.append(button);
   });
   const selected = data.milestones.find((item) => item.step === state.selectedStep) || data.milestones[0];
@@ -94,7 +94,7 @@ $('#lookup-form').addEventListener('submit', async (event) => {
   event.preventDefault(); message('#lookup-message', 'Retrieving team details…', 'success');
   const submitButton = $('#open-dashboard'); submitButton.disabled = true; submitButton.textContent = 'Retrieving…';
   state.admissionNumber = $('#admission-number').value.trim().replace(/\s/g, '').toUpperCase(); state.accessCode = $('#access-code').value.trim();
-  try { const result = await api('portalLookup', state); $('#lookup-card').hidden = true; $('#dashboard').hidden = false; renderDashboard(result.dashboard); }
+  try { const result = await api('portalLookup', state); $('#submission-form').reset(); message('#submission-message', ''); state.selectedStep = 'STEP_1'; $('#lookup-card').hidden = true; $('#dashboard').hidden = false; renderDashboard(result.dashboard); }
   catch (error) { message('#lookup-message', error.message); }
   finally { submitButton.disabled = false; submitButton.textContent = 'Open my dashboard'; }
 });
@@ -111,4 +111,4 @@ $('#submission-form').addEventListener('submit', async (event) => {
   finally { button.textContent = 'Submit work'; button.disabled = !(state.dashboard?.milestones.find((item) => item.step === state.selectedStep)?.accepting); }
 });
 
-$('#sign-out').addEventListener('click', () => { $('#dashboard').hidden = true; $('#lookup-card').hidden = false; $('#lookup-form').reset(); state.dashboard = null; });
+$('#sign-out').addEventListener('click', () => { $('#dashboard').hidden = true; $('#lookup-card').hidden = false; $('#lookup-form').reset(); $('#submission-form').reset(); message('#lookup-message', ''); message('#submission-message', ''); state.admissionNumber = ''; state.accessCode = ''; state.selectedStep = 'STEP_1'; state.dashboard = null; });

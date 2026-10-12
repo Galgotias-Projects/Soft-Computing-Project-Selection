@@ -15,7 +15,7 @@ function api(action, payload = {}) {
     const frame = document.createElement('iframe');
     const form = document.createElement('form');
     const input = document.createElement('input');
-    const timeout = window.setTimeout(() => finish(new Error('The portal service is taking longer than expected. Please retry.')), 30000);
+    const timeout = window.setTimeout(() => finish(new Error('The portal service is taking longer than expected. Please check your dashboard before retrying.')), 45000);
 
     function cleanup() {
       window.clearTimeout(timeout);
@@ -49,7 +49,8 @@ function api(action, payload = {}) {
   });
 }
 
-function dueText(item) {
+function dueText(item, feedback = {}) {
+  if (feedback.published && feedback.status) return `Reviewed · ${String(feedback.status).replaceAll('_', ' ')}`;
   if (item.status === 'EVALUATED') return 'Evaluated';
   if (item.status === 'NEEDS_IMPROVEMENT') return 'Needs improvement';
   if (item.status === 'SUBMITTED_LATE') return `Submitted late · ${item.lateDays} day(s) overdue`;
@@ -70,7 +71,7 @@ function renderDashboard(data) {
   const timeline = $('#timeline'); timeline.innerHTML = '';
   data.milestones.forEach((item) => {
     const button = document.createElement('button'); button.type = 'button'; button.className = `milestone ${item.step === state.selectedStep ? 'selected' : ''}`;
-    button.innerHTML = `<strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(dueText(item))}</span>`;
+    button.innerHTML = `<strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(dueText(item, (data.evaluations || {})[item.step]))}</span>`;
     button.addEventListener('click', () => { state.selectedStep = item.step; renderDashboard(state.dashboard); });
     timeline.append(button);
   });
@@ -82,6 +83,7 @@ function renderDashboard(data) {
     ? (selected.status === 'NOT_SUBMITTED' ? 'Submit your first version.' : 'A new submission replaces the visible version while preserving the earlier version for the teacher.')
     : 'This deadline has passed. Submissions are currently closed for this step.');
   $('#submit-work').disabled = !selected.accepting;
+  $('#deadline-notes').innerHTML = data.milestones.map((item) => `<li><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.deadlineDisplay)}${item.hasDeadline ? ' IST' : ''}. ${item.accepting ? 'Submissions open.' : escapeHtml(item.blockedReason || 'Submissions unavailable.')}</li>`).join('');
   const feedback = (data.evaluations || {})[selected.step] || {};
   $('#evaluation').innerHTML = feedback.published
     ? `<p class="status ${escapeHtml(String(feedback.status || '').toLowerCase())}">${escapeHtml(String(feedback.status || '').replaceAll('_', ' '))}${feedback.score ? ` · ${escapeHtml(feedback.score)}` : ''}</p><p><b>Comment:</b> ${escapeHtml(feedback.comment || '—')}</p><p><b>What is good:</b> ${escapeHtml(feedback.good || '—')}</p><p><b>Improve next:</b> ${escapeHtml(feedback.improve || '—')}</p><p><b>Required action:</b> ${escapeHtml(feedback.nextAction || '—')}</p>`
@@ -99,10 +101,14 @@ $('#lookup-form').addEventListener('submit', async (event) => {
 
 $('#submission-form').addEventListener('submit', async (event) => {
   event.preventDefault(); message('#submission-message', '');
+  const button = $('#submit-work');
+  if (button.disabled) return;
+  button.disabled = true; button.textContent = 'Submitting…';
   try {
     const result = await api('submitMilestone', { admissionNumber: state.admissionNumber, accessCode: state.accessCode, step: state.selectedStep, repositoryUrl: $('#repository-url').value.trim(), note: $('#submission-note').value.trim() });
     message('#submission-message', result.message, 'success'); renderDashboard(result.dashboard);
   } catch (error) { message('#submission-message', error.message); }
+  finally { button.textContent = 'Submit work'; button.disabled = !(state.dashboard?.milestones.find((item) => item.step === state.selectedStep)?.accepting); }
 });
 
 $('#sign-out').addEventListener('click', () => { $('#dashboard').hidden = true; $('#lookup-card').hidden = false; $('#lookup-form').reset(); state.dashboard = null; });

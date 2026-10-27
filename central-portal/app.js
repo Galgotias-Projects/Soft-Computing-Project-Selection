@@ -86,7 +86,7 @@ function renderDashboard(data) {
   $('#deadline-notes').innerHTML = data.milestones.map((item) => `<li><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.deadlineDisplay)}${item.hasDeadline ? ' IST' : ''}. ${item.accepting ? 'Submissions open.' : escapeHtml(item.blockedReason || 'Submissions unavailable.')}</li>`).join('');
   const feedback = (data.evaluations || {})[selected.step] || {};
   $('#evaluation').innerHTML = feedback.published
-    ? `<p class="status ${escapeHtml(String(feedback.status || '').toLowerCase())}">${escapeHtml(String(feedback.status || '').replaceAll('_', ' '))}${feedback.score ? ` · ${escapeHtml(feedback.score)}` : ''}</p><p><b>Comment:</b> ${escapeHtml(feedback.comment || '—')}</p><p><b>What is good:</b> ${escapeHtml(feedback.good || '—')}</p><p><b>Improve next:</b> ${escapeHtml(feedback.improve || '—')}</p><p><b>Required action:</b> ${escapeHtml(feedback.nextAction || '—')}</p>`
+    ? `<p class="status ${escapeHtml(String(feedback.status || '').toLowerCase())}">${escapeHtml(String(feedback.status || '').replaceAll('_', ' '))}${feedback.score ? ` · ${escapeHtml(feedback.score)}` : ''}</p><p><b>${selected.step === 'STEP_1' ? 'Expected' : 'Comment'}:</b> ${escapeHtml(selected.step === 'STEP_1' ? String(feedback.comment || '—').replace(/^Expected:\s*/i, '') : (feedback.comment || '—'))}</p><p><b>${selected.step === 'STEP_1' ? 'What is done' : 'What is good'}:</b> ${escapeHtml(feedback.good || '—')}</p><p><b>${selected.step === 'STEP_1' ? 'What needs attention' : 'Improve next'}:</b> ${escapeHtml(feedback.improve || '—')}</p><p><b>Required action:</b> ${escapeHtml(feedback.nextAction || '—')}</p>`
     : `<p>No evaluation has been published for ${escapeHtml(selected.label)} yet.</p>`;
 }
 

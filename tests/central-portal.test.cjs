@@ -16,7 +16,7 @@ function sheet(name, rows) {
   const api = {
     getLastRow: () => state.rows.length,
     getDataRange: () => ({getDisplayValues: () => state.rows.map(row => row.map(value => value instanceof Date ? value.toLocaleString('en-US') : String(value ?? '')))}),
-    getRange: (row, col) => ({setValue: value => {state.rows[row-1][col-1] = value;}}),
+    getRange: (row, col) => ({setValue: value => {state.rows[row-1][col-1] = value;}, getDisplayValue: () => String(state.rows[row-1]?.[col-1]||'')}),
     appendRow: row => state.rows.push(row),
   };
   sheets.set(name, api);
@@ -47,7 +47,7 @@ vm.runInContext(source,context);
 const call = (action,step,url='https://github.com/example/SC11-Water-Quality') => context.centralPortalDispatch({action,admissionNumber:admission,accessCode:'123456',step,repositoryUrl:url,note:'Baseline comparison in docs/STEP-4.md'});
 const addEarlier = step => submissions.rows.push([`fixture-${step}`,teamId,step,1,'TRUE',new Date('2026-10-01T10:00:00Z'),'','','https://github.com/example/SC11-Water-Quality','','','SUBMITTED',admission]);
 
-assert.equal(call('portalLookup').dashboard.milestones.length,4);
+assert.equal(call('portalLookup').dashboard.milestones.length,8);
 assert.equal(call('submitMilestone','STEP_4').ok,false,'Step 4 without Step 3 must be rejected');
 assert.equal(submissions.rows.length,1,'Rejected request must not write a row');
 addEarlier('STEP_1');
@@ -81,3 +81,43 @@ assert.equal(late.ok,true,'Late Step 4 submissions remain open');
 assert.equal(late.dashboard.milestones.find(item=>item.step==='STEP_4').lateDays,0,'An on-time first version stays on time after a late resubmission');
 assert.equal(submissions.rows[6][11],'SUBMITTED_LATE','The new row still records its actual late submission');
 console.log('Central portal tests passed: prerequisites, validation, Step 4 save/resubmit, audit, first-date status, late acceptance, feedback, access code.');
+
+// Product V1 adds fields without changing the first 13 submission columns.
+submissions.rows[0].push('Branch','Interface Type','Entry Point','Run Command','Report Path','Demo URL','Evidence Checks');
+settings.rows.push(['STEP_5_DEADLINE','2099-11-08T23:59:59+05:30'],['STEP_5_ACTIVE','TRUE'],['STEP_5_ACCEPT_LATE','TRUE'],['STEP_6_DEADLINE','2026-11-15T23:59:59+05:30'],['STEP_6_ACTIVE','FALSE']);
+const product = {
+  branch:'step-5-product-v1',interfaceType:'Streamlit',entryPoint:'app.py',
+  runCommand:'python -m streamlit run app.py',reportPath:'docs/STEP-5.md',demoUrl:'',
+  checks:{inference:true,validation:true,output:true,documentation:true}
+};
+const submitProduct = (evidence=product,extra={}) => context.centralPortalDispatch({action:'submitMilestone',admissionNumber:admission,accessCode:'123456',step:'STEP_5',repositoryUrl:'https://github.com/example/SC11-Water-Quality',note:'Product V1 evidence',productEvidence:evidence,...extra});
+const countBefore=submissions.rows.length;
+assert.equal(submitProduct({}).ok,false);
+assert.equal(submitProduct({...product,checks:{...product.checks,validation:false}}).ok,false);
+assert.equal(submitProduct({...product,reportPath:'../private.md'}).ok,false);
+assert.equal(submitProduct({...product,demoUrl:'javascript:alert(1)'}).ok,false);
+assert.equal(submitProduct({...product,runCommand:'=IMPORTXML("https://example.com")'}).ok,false);
+assert.equal(submissions.rows.length,countBefore,'Invalid Product V1 requests must not be saved');
+const successful=submitProduct();
+assert.equal(successful.ok,true);
+const firstProduct=submissions.rows.at(-1);
+assert.equal(firstProduct.length,20);
+assert.equal(firstProduct[13],'step-5-product-v1');
+assert.equal(firstProduct[16],'python -m streamlit run app.py');
+assert.equal(firstProduct[18],'','A hosted demo is optional');
+assert.equal(successful.dashboard.milestones.find(x=>x.step==='STEP_6').active,false);
+assert.equal(call('submitMilestone','STEP_6').ok,false,'Upcoming milestones must reject submission');
+assert.equal(submitProduct().ok,true);
+assert.equal(firstProduct[4],'FALSE');
+assert.equal(submissions.rows.at(-1)[3],2);
+settings.rows.find(row=>row[0]==='STEP_5_DEADLINE')[1]='2026-10-01T23:59:59+05:30';
+assert.equal(submitProduct().dashboard.milestones.find(x=>x.step==='STEP_5').lateDays,0);
+// A new team cannot bypass Step 4 by posting directly to the backend.
+const team2='TEST-NO-STEP4';
+const teamRows=sheets.get('Portal Teams');
+const second=sheet('Portal Teams',[header.teams,[teamId,admission,'Leader','Test','SC11','Water','123456','TRUE'],[team2,'24SCSE1410998','Second','Second','SC11','Water','123456','TRUE']]);
+const beforeBlocked=submissions.rows.length;
+assert.equal(submitProduct(product,{admissionNumber:'24SCSE1410998'}).ok,false);
+assert.equal(submissions.rows.length,beforeBlocked);
+console.log('Product V1 tests passed: eight milestones, required evidence, optional local demo, validation, prerequisites, append-only resubmission, first-date status and future-step blocking.');
+

@@ -55,6 +55,7 @@ function dueText(item, feedback = {}) {
   if (item.status === 'NEEDS_IMPROVEMENT') return 'Needs improvement';
   if (item.status === 'SUBMITTED_LATE') return `Submitted late · ${item.lateDays} day(s) overdue`;
   if (item.status === 'SUBMITTED') return 'Submitted · awaiting review';
+  if (item.active === false) return 'Upcoming · not active yet';
   if (!item.hasDeadline) return item.accepting ? 'Open for submission' : 'Not active yet';
   return item.overdueDays > 0 ? `Overdue by ${item.overdueDays} day(s)` : `Due ${item.deadlineDisplay}`;
 }
@@ -77,16 +78,20 @@ function renderDashboard(data) {
   });
   const selected = data.milestones.find((item) => item.step === state.selectedStep) || data.milestones[0];
   state.selectedStep = selected.step;
+  const isProduct = selected.step === 'STEP_5';
+  $('#product-fields').hidden = !isProduct;
+  $('#product-fields').disabled = !isProduct || !selected.accepting;
+  $('#step-expectations').hidden = !isProduct;
   $('#selected-step').value = selected.step;
   $('#submission-heading').textContent = `Submit or update ${selected.label}`;
   $('#submission-help').textContent = selected.blockedReason || (selected.accepting
     ? (selected.status === 'NOT_SUBMITTED' ? 'Submit your first version.' : 'A new submission replaces the visible version while preserving the earlier version for the teacher.')
-    : 'This deadline has passed. Submissions are currently closed for this step.');
+    : (selected.active === false ? 'This milestone is planned. Submissions will open later.' : 'Submissions are currently unavailable for this step.'));
   $('#submit-work').disabled = !selected.accepting;
   $('#deadline-notes').innerHTML = data.milestones.map((item) => `<li><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.deadlineDisplay)}${item.hasDeadline ? ' IST' : ''}. ${item.accepting ? 'Submissions open.' : escapeHtml(item.blockedReason || 'Submissions unavailable.')}</li>`).join('');
   const feedback = (data.evaluations || {})[selected.step] || {};
   $('#evaluation').innerHTML = feedback.published
-    ? `<p class="status ${escapeHtml(String(feedback.status || '').toLowerCase())}">${escapeHtml(String(feedback.status || '').replaceAll('_', ' '))}${feedback.score ? ` · ${escapeHtml(feedback.score)}` : ''}</p><p><b>${(['STEP_1', 'STEP_2', 'STEP_3', 'STEP_4'].includes(selected.step)) ? 'Expected' : 'Comment'}:</b> ${escapeHtml((['STEP_1', 'STEP_2', 'STEP_3', 'STEP_4'].includes(selected.step)) ? String(feedback.comment || '—').replace(/^Expected:\s*/i, '') : (feedback.comment || '—'))}</p><p><b>${(['STEP_1', 'STEP_2', 'STEP_3', 'STEP_4'].includes(selected.step)) ? 'What is done' : 'What is good'}:</b> ${escapeHtml(feedback.good || '—')}</p><p><b>${(['STEP_1', 'STEP_2', 'STEP_3', 'STEP_4'].includes(selected.step)) ? 'What needs attention' : 'Improve next'}:</b> ${escapeHtml(feedback.improve || '—')}</p><p><b>Required action:</b> ${escapeHtml(feedback.nextAction || '—')}</p>`
+    ? `<p class="status ${escapeHtml(String(feedback.status || '').toLowerCase())}">${escapeHtml(String(feedback.status || '').replaceAll('_', ' '))}${feedback.score ? ` · ${escapeHtml(feedback.score)}` : ''}</p><p><b>Expected:</b> ${escapeHtml(String(feedback.comment || '—').replace(/^Expected:\s*/i, ''))}</p><p><b>What is done:</b> ${escapeHtml(feedback.good || '—')}</p><p><b>What needs attention:</b> ${escapeHtml(feedback.improve || '—')}</p><p><b>Required action:</b> ${escapeHtml(feedback.nextAction || '—')}</p>`
     : `<p>No evaluation has been published for ${escapeHtml(selected.label)} yet.</p>`;
 }
 
@@ -105,10 +110,18 @@ $('#submission-form').addEventListener('submit', async (event) => {
   if (button.disabled) return;
   button.disabled = true; button.textContent = 'Submitting…';
   try {
-    const result = await api('submitMilestone', { admissionNumber: state.admissionNumber, accessCode: state.accessCode, step: state.selectedStep, repositoryUrl: $('#repository-url').value.trim(), note: $('#submission-note').value.trim() });
+    const productEvidence = state.selectedStep === 'STEP_5' ? {
+      branch: $('#product-branch').value.trim(), interfaceType: $('#interface-type').value,
+      entryPoint: $('#entry-point').value.trim(), runCommand: $('#run-command').value.trim(),
+      reportPath: $('#report-path').value.trim(), demoUrl: $('#demo-url').value.trim(),
+      checks: { inference: $('#check-inference').checked, validation: $('#check-validation').checked,
+        output: $('#check-output').checked, documentation: $('#check-documentation').checked }
+    } : undefined;
+    const result = await api('submitMilestone', { admissionNumber: state.admissionNumber, accessCode: state.accessCode, step: state.selectedStep, repositoryUrl: $('#repository-url').value.trim(), note: $('#submission-note').value.trim(), productEvidence });
     message('#submission-message', result.message, 'success'); renderDashboard(result.dashboard);
   } catch (error) { message('#submission-message', error.message); }
   finally { button.textContent = 'Submit work'; button.disabled = !(state.dashboard?.milestones.find((item) => item.step === state.selectedStep)?.accepting); }
 });
 
 $('#sign-out').addEventListener('click', () => { $('#dashboard').hidden = true; $('#lookup-card').hidden = false; $('#lookup-form').reset(); $('#submission-form').reset(); message('#lookup-message', ''); message('#submission-message', ''); state.admissionNumber = ''; state.accessCode = ''; state.selectedStep = 'STEP_1'; state.dashboard = null; });
+

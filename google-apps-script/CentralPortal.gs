@@ -5,7 +5,7 @@ const PORTAL = {
 
 const PORTAL_HEADERS = {
   teams: ['Team ID','Leader Admission Number','Leader Name','Team Name','Project ID','Project Name','Access Code','Active'],
-  submissions: ['Submission ID','Team ID','Step','Version','Latest','Submitted At','Deadline','Late Days','Repository URL','Commit URL','Note','Status','Submitted By'],
+  submissions: ['Submission ID','Team ID','Step','Version','Latest','Submitted At','Deadline','Late Days','Repository URL','Commit URL','Note','Status','Submitted By','Branch','Interface Type','Entry Point','Run Command','Report Path','Demo URL','Evidence Checks'],
   evaluations: ['Team ID','Step','Status','Score','Comment','What Is Good','What To Improve','Next Action','Published','Evaluated On'],
   settings: ['Key','Value'], audit: ['Timestamp','Team ID','Action','Detail']
 };
@@ -13,8 +13,14 @@ const PORTAL_DEFAULT_SETTINGS = [
   ['STEP_1_DEADLINE','2026-09-26T23:59:59+05:30'], ['STEP_1_ACCEPT_LATE','TRUE'],
   ['STEP_2_DEADLINE','2026-10-04T23:59:59+05:30'], ['STEP_2_ACCEPT_LATE','TRUE'],
   ['STEP_3_DEADLINE','2026-10-12T23:59:59+05:30'], ['STEP_3_ACCEPT_LATE','TRUE'], ['STEP_3_ACTIVE','TRUE'],
-  ['STEP_4_DEADLINE','2026-10-20T23:59:59+05:30'], ['STEP_4_ACCEPT_LATE','TRUE'], ['STEP_4_ACTIVE','TRUE']
+  ['STEP_4_DEADLINE','2026-10-20T23:59:59+05:30'], ['STEP_4_ACCEPT_LATE','TRUE'], ['STEP_4_ACTIVE','TRUE'],
+  ['STEP_5_DEADLINE','2026-11-08T23:59:59+05:30'], ['STEP_5_ACCEPT_LATE','TRUE'], ['STEP_5_ACTIVE','TRUE'],
+  ['STEP_6_DEADLINE','2026-11-15T23:59:59+05:30'], ['STEP_6_ACCEPT_LATE','TRUE'], ['STEP_6_ACTIVE','FALSE'],
+  ['STEP_7_DEADLINE','2026-11-22T23:59:59+05:30'], ['STEP_7_ACCEPT_LATE','TRUE'], ['STEP_7_ACTIVE','FALSE'],
+  ['STEP_8_DEADLINE','2026-11-29T23:59:59+05:30'], ['STEP_8_ACCEPT_LATE','TRUE'], ['STEP_8_ACTIVE','FALSE']
 ];
+const PORTAL_STEPS = ['STEP_1','STEP_2','STEP_3','STEP_4','STEP_5','STEP_6','STEP_7','STEP_8'];
+function portalPreviousStep(step) { const index=PORTAL_STEPS.indexOf(step); return index>0?PORTAL_STEPS[index-1]:null; }
 
 function isCentralPortalAction(action) { return ['portalLookup','submitMilestone'].indexOf(action) >= 0; }
 
@@ -70,7 +76,7 @@ function stepConfiguration(settings, step) {
   const deadlineValue = String(settings[step + '_DEADLINE'] || '').trim();
   const deadline = deadlineValue ? new Date(deadlineValue) : null;
   const hasDeadline = deadline && !isNaN(deadline.getTime());
-  const active = String(settings[step + '_ACTIVE'] || 'TRUE').toUpperCase() === 'TRUE';
+  const active = String(settings[step + '_ACTIVE'] || (PORTAL_STEPS.indexOf(step)<5?'TRUE':'FALSE')).toUpperCase() === 'TRUE';
   return { deadline, hasDeadline, active, acceptLate: String(settings[step + '_ACCEPT_LATE'] || 'FALSE').toUpperCase() === 'TRUE' };
 }
 
@@ -98,17 +104,16 @@ function portalDashboard(team) {
   const step1 = latest('STEP_1');
   const legacyStep1 = legacyStepOneSubmission(team);
   const hasSubmitted = step => !!latest(step) || (step==='STEP_1' && !!legacyStep1);
-  const previousStep = {STEP_2:'STEP_1',STEP_3:'STEP_2',STEP_4:'STEP_3'};
   const milestone = (step,label) => {
     const config=stepConfiguration(settings,step), record=latest(step), initial=first(step), fallback=step==='STEP_1'&&!record?legacyStep1:null;
     const overdue=config.hasDeadline?Math.max(0,Math.ceil((Date.now()-config.deadline.getTime())/86400000)):0;
-    const prerequisite=previousStep[step];
+    const prerequisite=portalPreviousStep(step);
     const blockedReason=prerequisite && !hasSubmitted(prerequisite) && !record ? 'Submit '+stepLabel(prerequisite)+' before '+label+'.' : '';
     const accepting=config.active && (!config.hasDeadline || overdue===0 || config.acceptLate) && !blockedReason;
     const recordedLateDays=initial?Number(initial[ix('Late Days')]||0):(fallback?fallback.lateDays:0);
     const firstDate=step==='STEP_1'?[initial&&new Date(initial[ix('Submitted At')]),legacyStep1&&legacyStep1.submittedAt].filter(d=>d&&!isNaN(d.getTime())).sort((a,b)=>a-b)[0]:null;
     const lateDays=firstDate&&config.hasDeadline?Math.max(0,Math.ceil((firstDate.getTime()-config.deadline.getTime())/86400000)):recordedLateDays;
-    return {step,label,deadlineDisplay:config.hasDeadline?Utilities.formatDate(config.deadline,Session.getScriptTimeZone(),'dd MMM yyyy, hh:mm a'):'Open - deadline will be announced',hasDeadline:!!config.hasDeadline,overdueDays:overdue,lateDays,status:record?(lateDays?'SUBMITTED_LATE':'SUBMITTED'):(fallback?fallback.status:'NOT_SUBMITTED'),accepting,blockedReason};
+    return {step,label,active:config.active,deadlineDisplay:config.hasDeadline?Utilities.formatDate(config.deadline,Session.getScriptTimeZone(),'dd MMM yyyy, hh:mm a'):'Open - deadline will be announced',hasDeadline:!!config.hasDeadline,overdueDays:overdue,lateDays,status:record?(lateDays?'SUBMITTED_LATE':'SUBMITTED'):(fallback?fallback.status:'NOT_SUBMITTED'),accepting,blockedReason:!config.active?'Not active yet.':blockedReason};
   };
   const evaluationFor = step => {
     const names=step==='STEP_1'?[PORTAL.evaluations,PORTAL.evaluationsStep1]:[PORTAL.evaluations];
@@ -121,27 +126,46 @@ function portalDashboard(team) {
     }
     return {published:false};
   };
-  return {team,milestones:[milestone('STEP_1','Step 1'),milestone('STEP_2','Step 2'),milestone('STEP_3','Step 3'),milestone('STEP_4','Step 4')],latestRepositoryUrl:step1?step1[ix('Repository URL')]:(legacyStep1?legacyStep1.repositoryUrl:'') ,evaluations:{STEP_1:evaluationFor('STEP_1'),STEP_2:evaluationFor('STEP_2'),STEP_3:evaluationFor('STEP_3'),STEP_4:evaluationFor('STEP_4')}};
+  return {team,milestones:PORTAL_STEPS.map(step=>milestone(step,stepLabel(step))),latestRepositoryUrl:step1?step1[ix('Repository URL')]:(legacyStep1?legacyStep1.repositoryUrl:'') ,evaluations:Object.fromEntries(PORTAL_STEPS.map(step=>[step,evaluationFor(step)]))};
 }
 
+function validateProductEvidence(body) {
+  const evidence=body.productEvidence||{};
+  const value=name=>String(evidence[name]||'').trim();
+  const fields={branch:value('branch'),interfaceType:value('interfaceType'),entryPoint:value('entryPoint'),runCommand:value('runCommand'),reportPath:value('reportPath'),demoUrl:value('demoUrl')};
+  if(!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,119}$/.test(fields.branch)||fields.branch.includes('..')) throw new Error('Enter the GitHub branch containing your Step 5 work.');
+  if(['Streamlit','Gradio','Web application','Desktop application','Other project interface'].indexOf(fields.interfaceType)<0) throw new Error('Choose your Product V1 interface type.');
+  for(const key of ['entryPoint','reportPath']) if(!/^[A-Za-z0-9_][A-Za-z0-9_. /-]{0,159}$/.test(fields[key])||fields[key].split(/[\\/]/).includes('..')) throw new Error('Enter a repository-relative '+(key==='entryPoint'?'entry-point':'report')+' file path.');
+  if(!fields.runCommand||fields.runCommand.length>250||/^[=+@]/.test(fields.runCommand)) throw new Error('Enter a run command of at most 250 characters.');
+  if(fields.demoUrl && (!/^https:\/\/[^\s<>]+$/i.test(fields.demoUrl)||fields.demoUrl.length>500)) throw new Error('Use a complete HTTPS demo URL, or leave it blank for a local demonstration.');
+  const checks=evidence.checks||{};
+  if(['inference','validation','output','documentation'].some(key=>checks[key]!==true)) throw new Error('Complete and confirm all four Product V1 checks before submitting Step 5.');
+  return [fields.branch,fields.interfaceType,fields.entryPoint,fields.runCommand,fields.reportPath,fields.demoUrl,'Inference; input validation; clear output; run instructions and evidence'];
+}
+function portalTextCell(value) { return typeof value==='string' && /^[=+\-@]/.test(value)?"'"+value:value; }
+
 function submitPortalMilestone(team, body) {
-  const step=String(body.step||''); if (['STEP_1','STEP_2','STEP_3','STEP_4'].indexOf(step)<0) return {ok:false,error:'Select an available project step.'};
+  const step=String(body.step||''); if (PORTAL_STEPS.indexOf(step)<0) return {ok:false,error:'Select an available project step.'};
   const url=normaliseRepositoryUrl(body.repositoryUrl); if (!GITHUB_REPOSITORY_URL_PATTERN.test(url)) return {ok:false,error:'Enter a complete public GitHub repository URL.'};
   const note=String(body.note||'').trim(); if(note.length>700) return {ok:false,error:'Keep the completion note within 700 characters.'};
+  let evidence=[];
+  try { if(step==='STEP_5') evidence=validateProductEvidence(body); } catch(error) { return {ok:false,error:error.message}; }
   const lock=LockService.getScriptLock(); lock.waitLock(30000);
   try {
     const ss=SpreadsheetApp.getActive(), sheet=ss.getSheetByName(PORTAL.submissions), rows=sheet.getDataRange().getDisplayValues(), h=rows[0], ix=n=>h.indexOf(n);
     const teamRows=rows.slice(1).filter(r=>r[ix('Team ID')]===team.id);
-    const priorStep={STEP_2:'STEP_1',STEP_3:'STEP_2',STEP_4:'STEP_3'}[step];
+    const priorStep=portalPreviousStep(step);
     if(priorStep && !teamRows.some(r=>r[ix('Step')]===priorStep) && !(priorStep==='STEP_1'&&legacyStepOneSubmission(team)) && !teamRows.some(r=>r[ix('Step')]===step)) return {ok:false,error:'Submit '+stepLabel(priorStep)+' before '+stepLabel(step)+'.'};
     const settings=portalSettings(), config=stepConfiguration(settings,step), now=new Date(), deadline=config.hasDeadline?config.deadline:'', lateDays=config.hasDeadline?Math.max(0,Math.ceil((now.getTime()-deadline.getTime())/86400000)):0;
     if(!config.active) return {ok:false,error:stepLabel(step)+' submissions are not active yet.'};
     if(lateDays>0 && !config.acceptLate) return {ok:false,error:'The '+stepLabel(step)+' deadline has passed. Please contact the course coordinator.'};
     const prior=teamRows.filter(r=>r[ix('Step')]===step), version=prior.reduce((max,r)=>Math.max(max,Number(r[ix('Version')])||0),0)+1;
-    sheet.appendRow([Utilities.getUuid(),team.id,step,version,'TRUE',now,deadline,lateDays,url,'',note,lateDays?'SUBMITTED_LATE':'SUBMITTED',team.admissionNumber]);
+    if(step==='STEP_5' && sheet.getRange(1,14).getDisplayValue()!=='Branch') return {ok:false,error:'Step 5 recording is being configured. Please contact the coordinator.'};
+    sheet.appendRow([Utilities.getUuid(),team.id,step,version,'TRUE',now,deadline,lateDays,url,'',note,lateDays?'SUBMITTED_LATE':'SUBMITTED',team.admissionNumber].concat(evidence).map(portalTextCell));
     prior.forEach(r=>{if(r[ix('Latest')]==='TRUE') sheet.getRange(rows.indexOf(r)+1,ix('Latest')+1).setValue('FALSE');});
     try { ss.getSheetByName(PORTAL.audit).appendRow([new Date(),team.id,'SUBMIT_'+step,'Version '+version]); }
     catch (error) { console.error('Portal audit write failed after a successful submission: '+error); }
     return {ok:true,message:version>1?'Your updated version is now the latest submission.':'Your submission has been recorded.',dashboard:portalDashboard(team)};
   } finally {lock.releaseLock();}
 }
+

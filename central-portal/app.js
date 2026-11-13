@@ -82,6 +82,10 @@ function renderDashboard(data) {
   $('#product-fields').hidden = !isProduct;
   $('#product-fields').disabled = !isProduct || !selected.accepting;
   $('#step-expectations').hidden = !isProduct;
+  const hasLinkedInField = selected.step === 'STEP_8' && typeof selected.linkedinPostUrl === 'string';
+  $('#linkedin-fields').hidden = !hasLinkedInField;
+  $('#linkedin-fields').disabled = !hasLinkedInField || !selected.accepting;
+  $('#linkedin-post-url').value = hasLinkedInField ? selected.linkedinPostUrl : '';
   $('#selected-step').value = selected.step;
   $('#submission-heading').textContent = `Submit or update ${selected.label}`;
   $('#submission-help').textContent = selected.blockedReason || (selected.accepting
@@ -117,7 +121,8 @@ $('#submission-form').addEventListener('submit', async (event) => {
       checks: { inference: $('#check-inference').checked, validation: $('#check-validation').checked,
         output: $('#check-output').checked, documentation: $('#check-documentation').checked }
     } : undefined;
-    const result = await api('submitMilestone', { admissionNumber: state.admissionNumber, accessCode: state.accessCode, step: state.selectedStep, repositoryUrl: $('#repository-url').value.trim(), note: $('#submission-note').value.trim(), productEvidence });
+    const linkedinPostUrl = $('#linkedin-fields').disabled ? undefined : $('#linkedin-post-url').value.trim();
+    const result = await api('submitMilestone', { admissionNumber: state.admissionNumber, accessCode: state.accessCode, step: state.selectedStep, repositoryUrl: $('#repository-url').value.trim(), note: $('#submission-note').value.trim(), productEvidence, linkedinPostUrl });
     message('#submission-message', result.message, 'success'); renderDashboard(result.dashboard);
   } catch (error) { message('#submission-message', error.message); }
   finally { button.textContent = 'Submit work'; button.disabled = !(state.dashboard?.milestones.find((item) => item.step === state.selectedStep)?.accepting); }

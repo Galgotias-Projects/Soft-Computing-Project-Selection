@@ -5,7 +5,7 @@ const PORTAL = {
 
 const PORTAL_HEADERS = {
   teams: ['Team ID','Leader Admission Number','Leader Name','Team Name','Project ID','Project Name','Access Code','Active'],
-  submissions: ['Submission ID','Team ID','Step','Version','Latest','Submitted At','Deadline','Late Days','Repository URL','Commit URL','Note','Status','Submitted By','Branch','Interface Type','Entry Point','Run Command','Report Path','Demo URL','Evidence Checks'],
+  submissions: ['Submission ID','Team ID','Step','Version','Latest','Submitted At','Deadline','Late Days','Repository URL','Commit URL','Note','Status','Submitted By','Branch','Interface Type','Entry Point','Run Command','Report Path','Demo URL','Evidence Checks','LinkedIn Post URL'],
   evaluations: ['Team ID','Step','Status','Score','Comment','What Is Good','What To Improve','Next Action','Published','Evaluated On'],
   settings: ['Key','Value'], audit: ['Timestamp','Team ID','Action','Detail']
 };
@@ -113,7 +113,7 @@ function portalDashboard(team) {
     const recordedLateDays=initial?Number(initial[ix('Late Days')]||0):(fallback?fallback.lateDays:0);
     const firstDate=step==='STEP_1'?[initial&&new Date(initial[ix('Submitted At')]),legacyStep1&&legacyStep1.submittedAt].filter(d=>d&&!isNaN(d.getTime())).sort((a,b)=>a-b)[0]:null;
     const lateDays=firstDate&&config.hasDeadline?Math.max(0,Math.ceil((firstDate.getTime()-config.deadline.getTime())/86400000)):recordedLateDays;
-    return {step,label,active:config.active,deadlineDisplay:config.hasDeadline?Utilities.formatDate(config.deadline,Session.getScriptTimeZone(),'dd MMM yyyy, hh:mm a'):'Open - deadline will be announced',hasDeadline:!!config.hasDeadline,overdueDays:overdue,lateDays,status:record?(lateDays?'SUBMITTED_LATE':'SUBMITTED'):(fallback?fallback.status:'NOT_SUBMITTED'),accepting,blockedReason:!config.active?'Not active yet.':blockedReason};
+    return {step,label,active:config.active,deadlineDisplay:config.hasDeadline?Utilities.formatDate(config.deadline,Session.getScriptTimeZone(),'dd MMM yyyy, hh:mm a'):'Open - deadline will be announced',hasDeadline:!!config.hasDeadline,overdueDays:overdue,lateDays,status:record?(lateDays?'SUBMITTED_LATE':'SUBMITTED'):(fallback?fallback.status:'NOT_SUBMITTED'),accepting,...(step==='STEP_8'?{linkedinPostUrl:record&&ix('LinkedIn Post URL')>=0?record[ix('LinkedIn Post URL')]:''}:{}),blockedReason:!config.active?'Not active yet.':blockedReason};
   };
   const evaluationFor = step => {
     const names=step==='STEP_1'?[PORTAL.evaluations,PORTAL.evaluationsStep1]:[PORTAL.evaluations];
@@ -142,14 +142,24 @@ function validateProductEvidence(body) {
   if(['inference','validation','output','documentation'].some(key=>checks[key]!==true)) throw new Error('Complete and confirm all four Product V1 checks before submitting Step 5.');
   return [fields.branch,fields.interfaceType,fields.entryPoint,fields.runCommand,fields.reportPath,fields.demoUrl,'Inference; input validation; clear output; run instructions and evidence'];
 }
+function validateLinkedInPostUrl(value) {
+  const url = String(value || '').trim();
+  if (!url) return '';
+  const postPattern = /^https:\/\/(?:www\.)?linkedin\.com\/(?:posts\/[a-z0-9_-]+|feed\/update\/urn:li:(?:activity|share|ugcPost):[0-9]+)\/?(?:[?#][^\s<>"\\]*)?$/i;
+  if (url.length > 1000 || !postPattern.test(url)) throw new Error('Paste the HTTPS link to a specific LinkedIn post, or leave the field blank.');
+  return url.split(/[?#]/, 1)[0];
+}
 function portalTextCell(value) { return typeof value==='string' && /^[=+\-@]/.test(value)?"'"+value:value; }
 
 function submitPortalMilestone(team, body) {
   const step=String(body.step||''); if (PORTAL_STEPS.indexOf(step)<0) return {ok:false,error:'Select an available project step.'};
   const url=normaliseRepositoryUrl(body.repositoryUrl); if (!GITHUB_REPOSITORY_URL_PATTERN.test(url)) return {ok:false,error:'Enter a complete public GitHub repository URL.'};
   const note=String(body.note||'').trim(); if(note.length>700) return {ok:false,error:'Keep the completion note within 700 characters.'};
-  let evidence=[];
-  try { if(step==='STEP_5') evidence=validateProductEvidence(body); } catch(error) { return {ok:false,error:error.message}; }
+  let evidence=[], linkedinPostUrl='';
+  try {
+    if(step==='STEP_5') evidence=validateProductEvidence(body);
+    if(step==='STEP_8') linkedinPostUrl=validateLinkedInPostUrl(body.linkedinPostUrl);
+  } catch(error) { return {ok:false,error:error.message}; }
   const lock=LockService.getScriptLock(); lock.waitLock(30000);
   try {
     const ss=SpreadsheetApp.getActive(), sheet=ss.getSheetByName(PORTAL.submissions), rows=sheet.getDataRange().getDisplayValues(), h=rows[0], ix=n=>h.indexOf(n);
@@ -161,6 +171,12 @@ function submitPortalMilestone(team, body) {
     if(lateDays>0 && !config.acceptLate) return {ok:false,error:'The '+stepLabel(step)+' deadline has passed. Please contact the course coordinator.'};
     const prior=teamRows.filter(r=>r[ix('Step')]===step), version=prior.reduce((max,r)=>Math.max(max,Number(r[ix('Version')])||0),0)+1;
     if(step==='STEP_5' && sheet.getRange(1,14).getDisplayValue()!=='Branch') return {ok:false,error:'Step 5 recording is being configured. Please contact the coordinator.'};
+    if(step==='STEP_8' && linkedinPostUrl && ix('LinkedIn Post URL')!==20) return {ok:false,error:'LinkedIn link recording is being configured. Try again or submit with the optional field blank.'};
+    if(step==='STEP_8' && ix('LinkedIn Post URL')===20) {
+      const latest=prior.find(row=>Number(row[ix('Version')])===version-1);
+      if(body.linkedinPostUrl===undefined && latest) linkedinPostUrl=latest[ix('LinkedIn Post URL')]||'';
+      evidence=[...Array(7).fill(''),linkedinPostUrl];
+    }
     sheet.appendRow([Utilities.getUuid(),team.id,step,version,'TRUE',now,deadline,lateDays,url,'',note,lateDays?'SUBMITTED_LATE':'SUBMITTED',team.admissionNumber].concat(evidence).map(portalTextCell));
     prior.forEach(r=>{if(r[ix('Latest')]==='TRUE') sheet.getRange(rows.indexOf(r)+1,ix('Latest')+1).setValue('FALSE');});
     try { ss.getSheetByName(PORTAL.audit).appendRow([new Date(),team.id,'SUBMIT_'+step,'Version '+version]); }

@@ -121,3 +121,32 @@ assert.equal(submitProduct(product,{admissionNumber:'24SCSE1410998'}).ok,false);
 assert.equal(submissions.rows.length,beforeBlocked);
 console.log('Product V1 tests passed: eight milestones, required evidence, optional local demo, validation, prerequisites, append-only resubmission, first-date status and future-step blocking.');
 
+for (const step of ['STEP_6','STEP_7','STEP_8']) {
+  settings.rows.push([step+'_ACTIVE','TRUE'],[step+'_ACCEPT_LATE','TRUE']);
+}
+settings.rows.find(row=>row[0]==='STEP_6_ACTIVE')[1]='TRUE';
+const submitShowcase = (extra={}, step='STEP_8') => submitProduct(product,{step,...extra});
+const post = 'https://www.linkedin.com/posts/student_capstone-demo-activity-1234567890-test';
+assert.equal(submitShowcase({linkedinPostUrl:post}).ok,false,'Step 7 is required');
+assert.equal(call('submitMilestone','STEP_6').ok,true);
+assert.equal(submitShowcase({linkedinPostUrl:post},'STEP_7').ok,true);
+assert.equal(submissions.rows.at(-1).length,13,'Other steps ignore the LinkedIn field');
+assert.equal(submitShowcase({linkedinPostUrl:post}).ok,false,'A supplied URL requires the tracker header');
+assert.equal(submitShowcase({}).ok,true,'Step 8 can be submitted without a LinkedIn account');
+submissions.rows[0].push('LinkedIn Post URL');
+const countBeforeInvalidPost = submissions.rows.length;
+for (const url of ['https://www.linkedin.com/in/student','http://linkedin.com/posts/a','https://www.linkedin.com.evil.test/posts/a','https://linkedin.com/feed/','https://linkedin.com/posts/with spaces','https://linkedin.com/posts/a?bad=<html>']) {
+  assert.equal(submitShowcase({linkedinPostUrl:url}).ok,false,url);
+}
+assert.equal(submissions.rows.length,countBeforeInvalidPost,'Invalid links do not create a version');
+const saved = submitShowcase({linkedinPostUrl:post+'?utm_source=share'});
+assert.equal(saved.ok,true);
+assert.equal(saved.dashboard.milestones.at(-1).linkedinPostUrl,post);
+assert.equal(submissions.rows.at(-1)[20],post);
+assert.equal(submissions.rows.at(-2)[4],'FALSE');
+assert.equal(submitShowcase().dashboard.milestones.at(-1).linkedinPostUrl,post,'An older client preserves a saved link');
+const activity = 'https://linkedin.com/feed/update/urn:li:activity:1234567890/';
+assert.equal(submitShowcase({linkedinPostUrl:activity}).dashboard.milestones.at(-1).linkedinPostUrl,activity);
+assert.equal(submitShowcase({linkedinPostUrl:''}).dashboard.milestones.at(-1).linkedinPostUrl,'','A team can remove its link in a new version');
+assert.equal(submissions.rows.filter(row=>row[2]==='STEP_8'&&row[4]==='TRUE').length,1);
+console.log('Step 8 tests passed: prerequisites, optional post, accepted links, versioning and other steps.');

@@ -92,6 +92,7 @@ function renderDashboard(data) {
     ? `Saved: ${existingPresentation.name} · ${existingPresentation.slides} slide(s) · from ${existingPresentation.sourceStep.replace('_',' ')}. Keep it selected to reuse, or untick to replace it.`
     : 'Upload the editable PowerPoint for Step 7. For Step 8, you can reuse the Step 7 deck or upload a revised one.';
   $('#presentation-service').textContent = needsPresentation && !uploadReady ? 'PowerPoint uploads are being configured. Please try again later.' : '';
+  $('#presentation-service').hidden = !needsPresentation || uploadReady;
   const isProduct = selected.step === 'STEP_5';
   $('#product-fields').hidden = !isProduct;
   $('#product-fields').disabled = !isProduct || !selected.accepting;

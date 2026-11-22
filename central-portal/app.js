@@ -9,13 +9,13 @@ function message(selector, text, kind = 'error') {
 function api(action, payload = {}) {
   if (!config.apiUrl || config.apiUrl.includes('PASTE_YOUR')) throw new Error('The portal is being configured. Please contact the course coordinator.');
   return new Promise((resolve, reject) => {
-    const requestId = window.crypto && window.crypto.randomUUID
+    const requestId = payload.requestId || (window.crypto && window.crypto.randomUUID
       ? window.crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
     const frame = document.createElement('iframe');
     const form = document.createElement('form');
     const input = document.createElement('input');
-    const timeout = window.setTimeout(() => finish(new Error('The portal service is taking longer than expected. Please check your dashboard before retrying.')), 45000);
+    const timeout = window.setTimeout(() => finish(new Error('The portal service is taking longer than expected. Please check your dashboard before retrying.')), payload.presentation ? 120000 : 45000);
 
     function cleanup() {
       window.clearTimeout(timeout);
@@ -78,6 +78,20 @@ function renderDashboard(data) {
   });
   const selected = data.milestones.find((item) => item.step === state.selectedStep) || data.milestones[0];
   state.selectedStep = selected.step;
+  const needsPresentation = ['STEP_7','STEP_8'].includes(selected.step);
+  const uploadReady = data.presentationUploads?.ready === true;
+  $('#presentation-fields').hidden = !needsPresentation;
+  $('#presentation-fields').disabled = !needsPresentation || !selected.accepting || !uploadReady;
+  const existingPresentation = selected.presentation;
+  $('#reuse-presentation-label').hidden = !existingPresentation;
+  $('#reuse-presentation').checked = !!existingPresentation;
+  $('#presentation-file').value = '';
+  $('#presentation-file').disabled = !uploadReady || !selected.accepting || !!existingPresentation;
+  $('#presentation-file').required = needsPresentation && uploadReady && !existingPresentation;
+  $('#presentation-current').textContent = existingPresentation
+    ? `Saved: ${existingPresentation.name} · ${existingPresentation.slides} slide(s) · from ${existingPresentation.sourceStep.replace('_',' ')}. Keep it selected to reuse, or untick to replace it.`
+    : 'Upload the editable PowerPoint for Step 7. For Step 8, you can reuse the Step 7 deck or upload a revised one.';
+  $('#presentation-service').textContent = needsPresentation && !uploadReady ? 'PowerPoint uploads are being configured. Please try again later.' : '';
   const isProduct = selected.step === 'STEP_5';
   $('#product-fields').hidden = !isProduct;
   $('#product-fields').disabled = !isProduct || !selected.accepting;
@@ -91,7 +105,7 @@ function renderDashboard(data) {
   $('#submission-help').textContent = selected.blockedReason || (selected.accepting
     ? (selected.status === 'NOT_SUBMITTED' ? 'Submit your first version.' : 'A new submission replaces the visible version while preserving the earlier version for the teacher.')
     : (selected.active === false ? 'This milestone is planned. Submissions will open later.' : 'Submissions are currently unavailable for this step.'));
-  $('#submit-work').disabled = !selected.accepting;
+  $('#submit-work').disabled = !selected.accepting || (needsPresentation && !uploadReady);
   $('#deadline-notes').innerHTML = data.milestones.map((item) => `<li><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.deadlineDisplay)}${item.hasDeadline ? ' IST' : ''}. ${item.accepting ? 'Submissions open.' : escapeHtml(item.blockedReason || 'Submissions unavailable.')}</li>`).join('');
   const feedback = (data.evaluations || {})[selected.step] || {};
   $('#evaluation').innerHTML = feedback.published
@@ -114,6 +128,23 @@ $('#submission-form').addEventListener('submit', async (event) => {
   if (button.disabled) return;
   button.disabled = true; button.textContent = 'Submitting…';
   try {
+    const needsPresentation = ['STEP_7','STEP_8'].includes(state.selectedStep);
+    const reusePresentation = needsPresentation && $('#reuse-presentation').checked;
+    let presentation;
+    const file = needsPresentation && !reusePresentation ? $('#presentation-file').files[0] : null;
+    if (needsPresentation && !reusePresentation) {
+      if (!file || !/\.pptx$/i.test(file.name)) throw new Error('Choose a PowerPoint .pptx file.');
+      if (!file.size || file.size > 10 * 1024 * 1024) throw new Error('Choose a PowerPoint file of at most 10 MB.');
+      button.textContent = 'Preparing presentation…';
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('The file could not be read. Choose it again.'));
+        reader.readAsDataURL(file);
+      });
+      presentation = {name:file.name,base64:String(dataUrl).split(',')[1]};
+      button.textContent = 'Uploading presentation…';
+    }
     const productEvidence = state.selectedStep === 'STEP_5' ? {
       branch: $('#product-branch').value.trim(), interfaceType: $('#interface-type').value,
       entryPoint: $('#entry-point').value.trim(), runCommand: $('#run-command').value.trim(),
@@ -122,11 +153,23 @@ $('#submission-form').addEventListener('submit', async (event) => {
         output: $('#check-output').checked, documentation: $('#check-documentation').checked }
     } : undefined;
     const linkedinPostUrl = $('#linkedin-fields').disabled ? undefined : $('#linkedin-post-url').value.trim();
-    const result = await api('submitMilestone', { admissionNumber: state.admissionNumber, accessCode: state.accessCode, step: state.selectedStep, repositoryUrl: $('#repository-url').value.trim(), note: $('#submission-note').value.trim(), productEvidence, linkedinPostUrl });
+    const signature = JSON.stringify([state.selectedStep,$('#repository-url').value.trim(),$('#submission-note').value.trim(),linkedinPostUrl,reusePresentation,file?.name,file?.size,file?.lastModified]);
+    if (state.pendingSignature !== signature) {
+      state.pendingSignature = signature;
+      state.pendingRequestId = window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+    const result = await api('submitMilestone', { admissionNumber: state.admissionNumber, accessCode: state.accessCode, step: state.selectedStep, repositoryUrl: $('#repository-url').value.trim(), note: $('#submission-note').value.trim(), productEvidence, linkedinPostUrl, presentation, reusePresentation, requestId:state.pendingRequestId });
+    state.pendingSignature = ''; state.pendingRequestId = '';
     message('#submission-message', result.message, 'success'); renderDashboard(result.dashboard);
   } catch (error) { message('#submission-message', error.message); }
-  finally { button.textContent = 'Submit work'; button.disabled = !(state.dashboard?.milestones.find((item) => item.step === state.selectedStep)?.accepting); }
+  finally { button.textContent = 'Submit work'; button.disabled = !(state.dashboard?.milestones.find((item) => item.step === state.selectedStep)?.accepting) || (['STEP_7','STEP_8'].includes(state.selectedStep) && !state.dashboard?.presentationUploads?.ready); }
 });
 
+$('#reuse-presentation').addEventListener('change', () => {
+  const reuse = $('#reuse-presentation').checked;
+  $('#presentation-file').disabled = reuse;
+  $('#presentation-file').required = !reuse;
+  if (reuse) $('#presentation-file').value = '';
+});
 $('#sign-out').addEventListener('click', () => { $('#dashboard').hidden = true; $('#lookup-card').hidden = false; $('#lookup-form').reset(); $('#submission-form').reset(); message('#lookup-message', ''); message('#submission-message', ''); state.admissionNumber = ''; state.accessCode = ''; state.selectedStep = 'STEP_1'; state.dashboard = null; });
 

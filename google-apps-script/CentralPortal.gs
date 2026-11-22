@@ -113,7 +113,8 @@ function portalDashboard(team) {
     const recordedLateDays=initial?Number(initial[ix('Late Days')]||0):(fallback?fallback.lateDays:0);
     const firstDate=step==='STEP_1'?[initial&&new Date(initial[ix('Submitted At')]),legacyStep1&&legacyStep1.submittedAt].filter(d=>d&&!isNaN(d.getTime())).sort((a,b)=>a-b)[0]:null;
     const lateDays=firstDate&&config.hasDeadline?Math.max(0,Math.ceil((firstDate.getTime()-config.deadline.getTime())/86400000)):recordedLateDays;
-    return {step,label,active:config.active,deadlineDisplay:config.hasDeadline?Utilities.formatDate(config.deadline,Session.getScriptTimeZone(),'dd MMM yyyy, hh:mm a'):'Open - deadline will be announced',hasDeadline:!!config.hasDeadline,overdueDays:overdue,lateDays,status:record?(lateDays?'SUBMITTED_LATE':'SUBMITTED'):(fallback?fallback.status:'NOT_SUBMITTED'),accepting,...(step==='STEP_8'?{linkedinPostUrl:record&&ix('LinkedIn Post URL')>=0?record[ix('LinkedIn Post URL')]:''}:{}),blockedReason:!config.active?'Not active yet.':blockedReason};
+    const presentation = ['STEP_7','STEP_8'].includes(step) && typeof presentationRecord==='function' ? presentationRecord(rows,h,team.id,step,true) : null;
+    return {step,label,active:config.active,deadlineDisplay:config.hasDeadline?Utilities.formatDate(config.deadline,Session.getScriptTimeZone(),'dd MMM yyyy, hh:mm a'):'Open - deadline will be announced',hasDeadline:!!config.hasDeadline,overdueDays:overdue,lateDays,status:record?(lateDays?'SUBMITTED_LATE':'SUBMITTED'):(fallback?fallback.status:'NOT_SUBMITTED'),accepting,...(step==='STEP_8'?{linkedinPostUrl:record&&ix('LinkedIn Post URL')>=0?record[ix('LinkedIn Post URL')]:''}:{}),...(presentation?{presentation:{name:presentation.name,slides:presentation.slides,size:presentation.size,sourceStep:presentation.sourceStep}}:{}),blockedReason:!config.active?'Not active yet.':blockedReason};
   };
   const evaluationFor = step => {
     const names=step==='STEP_1'?[PORTAL.evaluations,PORTAL.evaluationsStep1]:[PORTAL.evaluations];
@@ -126,7 +127,7 @@ function portalDashboard(team) {
     }
     return {published:false};
   };
-  return {team,milestones:PORTAL_STEPS.map(step=>milestone(step,stepLabel(step))),latestRepositoryUrl:step1?step1[ix('Repository URL')]:(legacyStep1?legacyStep1.repositoryUrl:'') ,evaluations:Object.fromEntries(PORTAL_STEPS.map(step=>[step,evaluationFor(step)]))};
+  return {team,milestones:PORTAL_STEPS.map(step=>milestone(step,stepLabel(step))),latestRepositoryUrl:step1?step1[ix('Repository URL')]:(legacyStep1?legacyStep1.repositoryUrl:'') ,evaluations:Object.fromEntries(PORTAL_STEPS.map(step=>[step,evaluationFor(step)])),presentationUploads:typeof presentationUploadStatus==='function'?presentationUploadStatus():{ready:false}};
 }
 
 function validateProductEvidence(body) {
@@ -161,9 +162,15 @@ function submitPortalMilestone(team, body) {
     if(step==='STEP_8') linkedinPostUrl=validateLinkedInPostUrl(body.linkedinPostUrl);
   } catch(error) { return {ok:false,error:error.message}; }
   const lock=LockService.getScriptLock(); lock.waitLock(30000);
+  let createdPresentationFile=null,submissionSaved=false;
   try {
     const ss=SpreadsheetApp.getActive(), sheet=ss.getSheetByName(PORTAL.submissions), rows=sheet.getDataRange().getDisplayValues(), h=rows[0], ix=n=>h.indexOf(n);
     const teamRows=rows.slice(1).filter(r=>r[ix('Team ID')]===team.id);
+    const existingRequest=ix('Request ID')>=0 && body.requestId ? teamRows.find(r=>r[ix('Request ID')]===body.requestId) : null;
+    if(existingRequest) {
+      if(existingRequest[ix('Step')]!==step) return {ok:false,error:'Please refresh your dashboard before submitting.'};
+      return {ok:true,message:'Your submission has already been recorded.',dashboard:portalDashboard(team)};
+    }
     const priorStep=portalPreviousStep(step);
     if(priorStep && !teamRows.some(r=>r[ix('Step')]===priorStep) && !(priorStep==='STEP_1'&&legacyStepOneSubmission(team)) && !teamRows.some(r=>r[ix('Step')]===step)) return {ok:false,error:'Submit '+stepLabel(priorStep)+' before '+stepLabel(step)+'.'};
     const settings=portalSettings(), config=stepConfiguration(settings,step), now=new Date(), deadline=config.hasDeadline?config.deadline:'', lateDays=config.hasDeadline?Math.max(0,Math.ceil((now.getTime()-deadline.getTime())/86400000)):0;
@@ -177,11 +184,25 @@ function submitPortalMilestone(team, body) {
       if(body.linkedinPostUrl===undefined && latest) linkedinPostUrl=latest[ix('LinkedIn Post URL')]||'';
       evidence=[...Array(7).fill(''),linkedinPostUrl];
     }
-    sheet.appendRow([Utilities.getUuid(),team.id,step,version,'TRUE',now,deadline,lateDays,url,'',note,lateDays?'SUBMITTED_LATE':'SUBMITTED',team.admissionNumber].concat(evidence).map(portalTextCell));
+    const prepared = typeof preparePresentationSubmission==='function' ? preparePresentationSubmission(team,body,rows,h,step) : null;
+    const saved = typeof savePresentationFile==='function' ? savePresentationFile(prepared,team,step,version) : {cells:[],file:null};
+    createdPresentationFile=saved.file;
+    const newRow=[Utilities.getUuid(),team.id,step,version,'TRUE',now,deadline,lateDays,url,'',note,lateDays?'SUBMITTED_LATE':'SUBMITTED',team.admissionNumber].concat(evidence);
+    if(prepared) {
+      while(newRow.length<21) newRow.push('');
+      newRow.push(...saved.cells,String(body.requestId||''));
+    }
+    sheet.appendRow(newRow.map(portalTextCell));
+    submissionSaved=true;
     prior.forEach(r=>{if(r[ix('Latest')]==='TRUE') sheet.getRange(rows.indexOf(r)+1,ix('Latest')+1).setValue('FALSE');});
     try { ss.getSheetByName(PORTAL.audit).appendRow([new Date(),team.id,'SUBMIT_'+step,'Version '+version]); }
     catch (error) { console.error('Portal audit write failed after a successful submission: '+error); }
     return {ok:true,message:version>1?'Your updated version is now the latest submission.':'Your submission has been recorded.',dashboard:portalDashboard(team)};
+  } catch(error) {
+    if(createdPresentationFile && !submissionSaved) {
+      try { createdPresentationFile.setTrashed(true); } catch(cleanupError) { console.error('Could not clean unrecorded presentation: '+cleanupError); }
+    }
+    return {ok:false,error:submissionSaved?'Your submission was recorded. Reopen your dashboard to check the result before retrying.':error.message||'The presentation could not be saved. Please try again.'};
   } finally {lock.releaseLock();}
 }
 

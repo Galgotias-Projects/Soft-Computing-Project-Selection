@@ -7,6 +7,7 @@ vm.runInContext(source,context);
 const past={active:true,hasDeadline:true,overdueDays:1,status:'SUBMITTED'};
 const tone=(item,status,published=true)=>context.milestoneTone(item,{status,published});
 for(const status of ['Needs Revision','NEEDS_REVISION','Needs Improvement'])assert.equal(tone(past,status),'status-revision');
+assert.equal(tone({...past,status:'SUBMITTED_LATE'},'Needs Revision'),'status-revision','A late submission reviewed as needing revision is yellow, not red');
 for(const status of ['Accepted','ACCEPTED','Provisionally Accepted'])assert.equal(tone(past,status),'status-accepted');
 assert.equal(tone({...past,status:'NOT_SUBMITTED'},'Accepted'),'status-missing','Missing overdue work is red even with stale feedback');
 assert.equal(tone(past,'Needs Revision',false),'','Unpublished feedback does not expose a review state');

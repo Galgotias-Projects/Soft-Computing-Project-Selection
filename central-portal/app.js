@@ -182,6 +182,17 @@ $('#grade-review-form').addEventListener('submit', async (event) => {
   finally{button.textContent='Send review request';button.disabled=state.dashboard?.gradeReviews?.ready!==true;}
 });
 
+$('#refresh-dashboard').addEventListener('click', async () => {
+  const button=$('#refresh-dashboard');button.disabled=true;
+  message('#dashboard-message','Checking the latest grades and replies…','success');
+  try {
+    const result=await api('portalLookup',{admissionNumber:state.admissionNumber,accessCode:state.accessCode});
+    renderDashboard(result.dashboard);
+    message('#dashboard-message','Dashboard updated.','success');
+  } catch(error){message('#dashboard-message',error.message);}
+  finally{button.disabled=false;}
+});
+
 $('#lookup-form').addEventListener('submit', async (event) => {
   event.preventDefault(); message('#lookup-message', 'Retrieving team details…', 'success');
   const submitButton = $('#open-dashboard'); submitButton.disabled = true; submitButton.textContent = 'Retrieving…';

@@ -180,7 +180,7 @@ function submitGradeReview(team,body) {
     if(pending) return {ok:true,message:'A request for this step is already awaiting review. Its status is shown below.',dashboard};
     const ss=SpreadsheetApp.getActive(),subRows=ss.getSheetByName(PORTAL.submissions).getDataRange().getDisplayValues();
     const versions=subRows.slice(1).filter(r=>r[1]===team.id&&r[2]===step).map(r=>Number(r[3])||0);
-    const version=versions.length?Math.max(...versions):'Legacy Step 1';
+    const version=versions.length?Math.max(...versions):(step==='STEP_1'&&legacyStepOneSubmission(team)?'Legacy Step 1':'Not recorded');
     const id=Utilities.getUuid();
     table.sheet.appendRow([id,new Date(),team.id,team.teamName,team.admissionNumber,team.projectId,step,version,GRADE_REVIEW_TYPES[category],concern,evidenceUrl,String(feedback.score),JSON.stringify(feedback),'PENDING','','',clientId].map(portalTextCell));
     saved=true;

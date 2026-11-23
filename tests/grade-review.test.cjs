@@ -28,6 +28,7 @@ check(ctx.gradeReviewDashboard({id:'TEST-A'}).requests[0].response.includes('lin
 check(call({requestId:'new-after-response',teamId:'TEST-B',status:'CLOSED'}).ok&&reviews.length===3,'New request allowed after response');
 check(reviews[2][2]==='TEST-A'&&reviews[2][13]==='PENDING','Cannot spoof a team or resolution status');
 check(call({step:'STEP_8',scoreAtView:'0/10',requestId:'future-grade-review'}).ok,'Zero grades and future graded steps automatically supported');
+check(reviews.at(-1)[7]==='Not recorded','A graded step without a portal version is not labelled as legacy Step 1');
 reviews[2][13]='CLOSED';
 check(call({concern:'=A concern beginning with a formula character stays plain text.',requestId:'formula-safe-request'}).ok,'Formula-like text accepted safely');
 check(reviews.at(-1)[9].startsWith("'="),'Spreadsheet formula injection escaped');

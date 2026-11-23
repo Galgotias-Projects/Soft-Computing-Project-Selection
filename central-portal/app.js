@@ -93,20 +93,28 @@ function renderDashboard(data) {
     : 'Upload the editable PowerPoint for Step 7. For Step 8, you can reuse the Step 7 deck or upload a revised one.';
   $('#presentation-service').textContent = needsPresentation && !uploadReady ? 'PowerPoint uploads are being configured. Please try again later.' : '';
   $('#presentation-service').hidden = !needsPresentation || uploadReady;
+  const finalReady = data.finalEvidence?.ready === true;
+  $('#final-evidence-fields').hidden = !needsPresentation;
+  $('#final-evidence-fields').disabled = !needsPresentation || !selected.accepting || !finalReady;
+  $('#final-demo-mode').value = selected.demoMode || '';
+  $('#final-demo-url').value = selected.demoUrl || '';
+  $('#presentation-reference-url').value = selected.presentationReferenceUrl || '';
+  for (const id of ['repository','description','credits']) $('#linkedin-check-'+id).checked = false;
+  if(needsPresentation && !finalReady) { $('#presentation-service').textContent = 'The final-step form is being updated. Refresh this page shortly.'; $('#presentation-service').hidden=false; }
   const isProduct = selected.step === 'STEP_5';
   $('#product-fields').hidden = !isProduct;
   $('#product-fields').disabled = !isProduct || !selected.accepting;
   $('#step-expectations').hidden = !isProduct;
   const hasLinkedInField = selected.step === 'STEP_8' && typeof selected.linkedinPostUrl === 'string';
   $('#linkedin-fields').hidden = !hasLinkedInField;
-  $('#linkedin-fields').disabled = !hasLinkedInField || !selected.accepting;
+  $('#linkedin-fields').disabled = !hasLinkedInField || !selected.accepting || !finalReady;
   $('#linkedin-post-url').value = hasLinkedInField ? selected.linkedinPostUrl : '';
   $('#selected-step').value = selected.step;
   $('#submission-heading').textContent = `Submit or update ${selected.label}`;
   $('#submission-help').textContent = selected.blockedReason || (selected.accepting
     ? (selected.status === 'NOT_SUBMITTED' ? 'Submit your first version.' : 'A new submission replaces the visible version while preserving the earlier version for the teacher.')
     : (selected.active === false ? 'This milestone is planned. Submissions will open later.' : 'Submissions are currently unavailable for this step.'));
-  $('#submit-work').disabled = !selected.accepting || (needsPresentation && !uploadReady);
+  $('#submit-work').disabled = !selected.accepting || (needsPresentation && (!uploadReady || !finalReady));
   $('#deadline-notes').innerHTML = data.milestones.map((item) => `<li><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.deadlineDisplay)}${item.hasDeadline ? ' IST' : ''}. ${item.accepting ? 'Submissions open.' : escapeHtml(item.blockedReason || 'Submissions unavailable.')}</li>`).join('');
   const feedback = (data.evaluations || {})[selected.step] || {};
   $('#evaluation').innerHTML = feedback.published
@@ -154,16 +162,20 @@ $('#submission-form').addEventListener('submit', async (event) => {
         output: $('#check-output').checked, documentation: $('#check-documentation').checked }
     } : undefined;
     const linkedinPostUrl = $('#linkedin-fields').disabled ? undefined : $('#linkedin-post-url').value.trim();
-    const signature = JSON.stringify([state.selectedStep,$('#repository-url').value.trim(),$('#submission-note').value.trim(),linkedinPostUrl,reusePresentation,file?.name,file?.size,file?.lastModified]);
+    const finalEvidence = needsPresentation ? {demoMode:$('#final-demo-mode').value,demoUrl:$('#final-demo-url').value.trim(),presentationReferenceUrl:$('#presentation-reference-url').value.trim()} : undefined;
+    const linkedinChecks = state.selectedStep==='STEP_8' ? {repository:$('#linkedin-check-repository').checked,description:$('#linkedin-check-description').checked,credits:$('#linkedin-check-credits').checked} : undefined;
+    if(needsPresentation && (!finalEvidence.demoMode || !finalEvidence.demoUrl)) throw new Error('Choose your demonstration type and enter the public UI or demo evidence link.');
+    if(state.selectedStep==='STEP_8' && (!linkedinPostUrl || !Object.values(linkedinChecks).every(v=>v===true))) throw new Error('Add your project LinkedIn post URL and confirm its GitHub link, description and credits.');
+    const signature = JSON.stringify([finalEvidence,linkedinChecks,state.selectedStep,$('#repository-url').value.trim(),$('#submission-note').value.trim(),linkedinPostUrl,reusePresentation,file?.name,file?.size,file?.lastModified]);
     if (state.pendingSignature !== signature) {
       state.pendingSignature = signature;
       state.pendingRequestId = window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     }
-    const result = await api('submitMilestone', { admissionNumber: state.admissionNumber, accessCode: state.accessCode, step: state.selectedStep, repositoryUrl: $('#repository-url').value.trim(), note: $('#submission-note').value.trim(), productEvidence, linkedinPostUrl, presentation, reusePresentation, requestId:state.pendingRequestId });
+    const result = await api('submitMilestone', { admissionNumber: state.admissionNumber, accessCode: state.accessCode, step: state.selectedStep, repositoryUrl: $('#repository-url').value.trim(), note: $('#submission-note').value.trim(), productEvidence, finalEvidence, linkedinPostUrl, linkedinChecks, presentation, reusePresentation, requestId:state.pendingRequestId });
     state.pendingSignature = ''; state.pendingRequestId = '';
     message('#submission-message', result.message, 'success'); renderDashboard(result.dashboard);
   } catch (error) { message('#submission-message', error.message); }
-  finally { button.textContent = 'Submit work'; button.disabled = !(state.dashboard?.milestones.find((item) => item.step === state.selectedStep)?.accepting) || (['STEP_7','STEP_8'].includes(state.selectedStep) && !state.dashboard?.presentationUploads?.ready); }
+  finally { button.textContent = 'Submit work'; button.disabled = !(state.dashboard?.milestones.find((item) => item.step === state.selectedStep)?.accepting) || (['STEP_7','STEP_8'].includes(state.selectedStep) && (!state.dashboard?.presentationUploads?.ready || !state.dashboard?.finalEvidence?.ready)); }
 });
 
 $('#reuse-presentation').addEventListener('change', () => {

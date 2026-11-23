@@ -4,7 +4,7 @@ const fixtures=path.resolve(__dirname,'fixtures');
 const text=n=>fs.readFileSync(path.join(base,'google-apps-script',n),'utf8');
 const blob=(bytes,type,name)=>({getBytes:()=>Array.from(Buffer.from(bytes)),getName:()=>name,getDataAsString:()=>Buffer.from(bytes).toString('utf8')});
 const files=new Map();let created=0,appendFails=false;
-const headers=['Submission ID','Team ID','Step','Version','Latest','Submitted At','Deadline','Late Days','Repository URL','Commit URL','Note','Status','Submitted By','Branch','Interface Type','Entry Point','Run Command','Report Path','Demo URL','Evidence Checks','LinkedIn Post URL','Presentation URL','Presentation File Name','Presentation Slides','Presentation Size Bytes','Presentation SHA256','Request ID'];
+const headers=['Submission ID','Team ID','Step','Version','Latest','Submitted At','Deadline','Late Days','Repository URL','Commit URL','Note','Status','Submitted By','Branch','Interface Type','Entry Point','Run Command','Report Path','Demo URL','Evidence Checks','LinkedIn Post URL','Presentation URL','Presentation File Name','Presentation Slides','Presentation Size Bytes','Presentation SHA256','Request ID','Demo Mode','Presentation Reference URL','LinkedIn Post Checks'];
 const tables=new Map();
 function table(name,rows){
  const api={rows,getLastRow:()=>rows.length,getDataRange:()=>({getDisplayValues:()=>rows.map(r=>r.map(x=>x instanceof Date?x.toISOString():String(x??'')))}),
@@ -31,7 +31,7 @@ const ctx=vm.createContext({
 });
 vm.runInContext(text('PresentationUpload.gs'),ctx);vm.runInContext(text('CentralPortal.gs'),ctx);
 const upload=n=>({name:`dummy-${n}-slides.pptx`,base64:fs.readFileSync(path.join(fixtures,`dummy-${n}-slides.pptx`)).toString('base64')});
-const body=(step,extra={})=>({action:'submitMilestone',admissionNumber:'24SCSE1410999',accessCode:'123456',step,repositoryUrl:'https://github.com/example/test',note:'TEST ONLY',requestId:crypto.randomUUID(),...extra});
+const body=(step,extra={})=>({action:'submitMilestone',admissionNumber:'24SCSE1410999',accessCode:'123456',step,repositoryUrl:'https://github.com/example/test',note:'TEST ONLY',finalEvidence:{demoMode:'HOSTED',demoUrl:'https://example.org/demo',presentationReferenceUrl:''},linkedinChecks:{repository:true,description:true,credits:true},requestId:crypto.randomUUID(),...extra});
 const send=b=>ctx.centralPortalDispatch(b);
 let checks=0;
 function ok(v,msg){assert.ok(v,msg);checks++;}

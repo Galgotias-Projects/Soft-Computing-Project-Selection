@@ -113,8 +113,10 @@ function portalDashboard(team) {
     const recordedLateDays=initial?Number(initial[ix('Late Days')]||0):(fallback?fallback.lateDays:0);
     const firstDate=step==='STEP_1'?[initial&&new Date(initial[ix('Submitted At')]),legacyStep1&&legacyStep1.submittedAt].filter(d=>d&&!isNaN(d.getTime())).sort((a,b)=>a-b)[0]:null;
     const lateDays=firstDate&&config.hasDeadline?Math.max(0,Math.ceil((firstDate.getTime()-config.deadline.getTime())/86400000)):recordedLateDays;
+    const priorEvidence=record || (step==='STEP_8'?latest('STEP_7'):null) || latest('STEP_5');
+    const finalFields=['STEP_7','STEP_8'].includes(step)?{demoMode:priorEvidence&&ix('Demo Mode')>=0?priorEvidence[ix('Demo Mode')]||'':'',demoUrl:priorEvidence&&ix('Demo URL')>=0?priorEvidence[ix('Demo URL')]||'':'',presentationReferenceUrl:priorEvidence&&ix('Presentation Reference URL')>=0?priorEvidence[ix('Presentation Reference URL')]||'':''}:{};
     const presentation = ['STEP_7','STEP_8'].includes(step) && typeof presentationRecord==='function' ? presentationRecord(rows,h,team.id,step,true) : null;
-    return {step,label,active:config.active,deadlineDisplay:config.hasDeadline?Utilities.formatDate(config.deadline,Session.getScriptTimeZone(),'dd MMM yyyy, hh:mm a'):'Open - deadline will be announced',hasDeadline:!!config.hasDeadline,overdueDays:overdue,lateDays,status:record?(lateDays?'SUBMITTED_LATE':'SUBMITTED'):(fallback?fallback.status:'NOT_SUBMITTED'),accepting,...(step==='STEP_8'?{linkedinPostUrl:record&&ix('LinkedIn Post URL')>=0?record[ix('LinkedIn Post URL')]:''}:{}),...(presentation?{presentation:{name:presentation.name,slides:presentation.slides,size:presentation.size,sourceStep:presentation.sourceStep}}:{}),blockedReason:!config.active?'Not active yet.':blockedReason};
+    return {...finalFields,step,label,active:config.active,deadlineDisplay:config.hasDeadline?Utilities.formatDate(config.deadline,Session.getScriptTimeZone(),'dd MMM yyyy, hh:mm a'):'Open - deadline will be announced',hasDeadline:!!config.hasDeadline,overdueDays:overdue,lateDays,status:record?(lateDays?'SUBMITTED_LATE':'SUBMITTED'):(fallback?fallback.status:'NOT_SUBMITTED'),accepting,...(step==='STEP_8'?{linkedinPostUrl:record&&ix('LinkedIn Post URL')>=0?record[ix('LinkedIn Post URL')]:''}:{}),...(presentation?{presentation:{name:presentation.name,slides:presentation.slides,size:presentation.size,sourceStep:presentation.sourceStep}}:{}),blockedReason:!config.active?'Not active yet.':blockedReason};
   };
   const evaluationFor = step => {
     const names=step==='STEP_1'?[PORTAL.evaluations,PORTAL.evaluationsStep1]:[PORTAL.evaluations];
@@ -127,7 +129,7 @@ function portalDashboard(team) {
     }
     return {published:false};
   };
-  return {team,milestones:PORTAL_STEPS.map(step=>milestone(step,stepLabel(step))),latestRepositoryUrl:step1?step1[ix('Repository URL')]:(legacyStep1?legacyStep1.repositoryUrl:'') ,evaluations:Object.fromEntries(PORTAL_STEPS.map(step=>[step,evaluationFor(step)])),presentationUploads:typeof presentationUploadStatus==='function'?presentationUploadStatus():{ready:false}};
+  return {finalEvidence:{ready:finalEvidenceReady(h)},team,milestones:PORTAL_STEPS.map(step=>milestone(step,stepLabel(step))),latestRepositoryUrl:step1?step1[ix('Repository URL')]:(legacyStep1?legacyStep1.repositoryUrl:'') ,evaluations:Object.fromEntries(PORTAL_STEPS.map(step=>[step,evaluationFor(step)])),presentationUploads:typeof presentationUploadStatus==='function'?presentationUploadStatus():{ready:false}};
 }
 
 function validateProductEvidence(body) {
@@ -147,8 +149,32 @@ function validateLinkedInPostUrl(value) {
   const url = String(value || '').trim();
   if (!url) return '';
   const postPattern = /^https:\/\/(?:www\.)?linkedin\.com\/(?:posts\/[a-z0-9_-]+|feed\/update\/urn:li:(?:activity|share|ugcPost):[0-9]+)\/?(?:[?#][^\s<>"\\]*)?$/i;
-  if (url.length > 1000 || !postPattern.test(url)) throw new Error('Paste the HTTPS link to a specific LinkedIn post, or leave the field blank.');
+  if (url.length > 1000 || !postPattern.test(url)) throw new Error('Paste the HTTPS link to a specific project LinkedIn post. Profile and company-page links are not accepted.');
   return url.split(/[?#]/, 1)[0];
+}
+const FINAL_EVIDENCE_HEADERS = ['Demo Mode','Presentation Reference URL','LinkedIn Post Checks'];
+function finalEvidenceReady(headers) { return FINAL_EVIDENCE_HEADERS.every((name,i)=>headers[27+i]===name); }
+function validatePublicEvidenceUrl(value,label,required) {
+  const url=String(value||'').trim();
+  if(!url && !required) return '';
+  const match=/^https:\/\/([a-z0-9.-]+)(?::443)?(?:[/?#][^\s<>"\\]*)?$/i.exec(url);
+  if(!match || url.length>1000 || !match[1].includes('.') || /^(?:localhost|127\.|0\.|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2[0-9]|3[01])\.)/i.test(match[1])) throw new Error('Enter a public HTTPS '+label+' link. Localhost links cannot be opened by the reviewer.');
+  return url;
+}
+function validateFinalEvidence(body,step) {
+  const e=body.finalEvidence||{}, mode=String(e.demoMode||'');
+  if(!['HOSTED','LOCAL_EVIDENCE'].includes(mode)) throw new Error('Choose a hosted UI or local application evidence for your demonstration.');
+  const demoUrl=validatePublicEvidenceUrl(e.demoUrl,'UI/demo',true);
+  const presentationReferenceUrl=validatePublicEvidenceUrl(e.presentationReferenceUrl,'presentation PDF/PPTX',false);
+  let linkedinPostUrl='',linkedinChecks='';
+  if(step==='STEP_8') {
+    linkedinPostUrl=validateLinkedInPostUrl(body.linkedinPostUrl);
+    if(!linkedinPostUrl) throw new Error('Step 8 requires the link to your project LinkedIn post. A profile link is not accepted.');
+    const checks=body.linkedinChecks||{};
+    if(['repository','description','credits'].some(key=>checks[key]!==true)) throw new Error('Confirm that the post includes this project GitHub link, a project description, and team/guide/university credits.');
+    linkedinChecks='Confirmed: submitted GitHub repository; project description; team, guide and university credits';
+  }
+  return {demoMode:mode,demoUrl,presentationReferenceUrl,linkedinPostUrl,linkedinChecks};
 }
 function portalTextCell(value) { return typeof value==='string' && /^[=+\-@]/.test(value)?"'"+value:value; }
 
@@ -159,7 +185,7 @@ function submitPortalMilestone(team, body) {
   let evidence=[], linkedinPostUrl='';
   try {
     if(step==='STEP_5') evidence=validateProductEvidence(body);
-    if(step==='STEP_8') linkedinPostUrl=validateLinkedInPostUrl(body.linkedinPostUrl);
+
   } catch(error) { return {ok:false,error:error.message}; }
   const lock=LockService.getScriptLock(); lock.waitLock(30000);
   let createdPresentationFile=null,submissionSaved=false;
@@ -178,11 +204,11 @@ function submitPortalMilestone(team, body) {
     if(lateDays>0 && !config.acceptLate) return {ok:false,error:'The '+stepLabel(step)+' deadline has passed. Please contact the course coordinator.'};
     const prior=teamRows.filter(r=>r[ix('Step')]===step), version=prior.reduce((max,r)=>Math.max(max,Number(r[ix('Version')])||0),0)+1;
     if(step==='STEP_5' && sheet.getRange(1,14).getDisplayValue()!=='Branch') return {ok:false,error:'Step 5 recording is being configured. Please contact the coordinator.'};
-    if(step==='STEP_8' && linkedinPostUrl && ix('LinkedIn Post URL')!==20) return {ok:false,error:'LinkedIn link recording is being configured. Try again or submit with the optional field blank.'};
-    if(step==='STEP_8' && ix('LinkedIn Post URL')===20) {
-      const latest=prior.find(row=>Number(row[ix('Version')])===version-1);
-      if(body.linkedinPostUrl===undefined && latest) linkedinPostUrl=latest[ix('LinkedIn Post URL')]||'';
-      evidence=[...Array(7).fill(''),linkedinPostUrl];
+    let finalEvidence=null;
+    if(['STEP_7','STEP_8'].includes(step)) {
+      if(ix('LinkedIn Post URL')!==20 || !finalEvidenceReady(h)) return {ok:false,error:'The updated final-step form is being configured. Refresh the portal before submitting.'};
+      finalEvidence=validateFinalEvidence(body,step);
+      evidence=Array(8).fill(''); evidence[5]=finalEvidence.demoUrl; evidence[7]=finalEvidence.linkedinPostUrl;
     }
     const prepared = typeof preparePresentationSubmission==='function' ? preparePresentationSubmission(team,body,rows,h,step) : null;
     const saved = typeof savePresentationFile==='function' ? savePresentationFile(prepared,team,step,version) : {cells:[],file:null};
@@ -191,6 +217,10 @@ function submitPortalMilestone(team, body) {
     if(prepared) {
       while(newRow.length<21) newRow.push('');
       newRow.push(...saved.cells,String(body.requestId||''));
+    }
+    if(finalEvidence) {
+      while(newRow.length<27) newRow.push('');
+      newRow.push(finalEvidence.demoMode,finalEvidence.presentationReferenceUrl,finalEvidence.linkedinChecks);
     }
     sheet.appendRow(newRow.map(portalTextCell));
     submissionSaved=true;

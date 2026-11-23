@@ -22,7 +22,7 @@ const PORTAL_DEFAULT_SETTINGS = [
 const PORTAL_STEPS = ['STEP_1','STEP_2','STEP_3','STEP_4','STEP_5','STEP_6','STEP_7','STEP_8'];
 function portalPreviousStep(step) { const index=PORTAL_STEPS.indexOf(step); return index>0?PORTAL_STEPS[index-1]:null; }
 
-function isCentralPortalAction(action) { return ['portalLookup','submitMilestone'].indexOf(action) >= 0; }
+function isCentralPortalAction(action) { return ['portalLookup','submitMilestone','requestGradeReview'].indexOf(action) >= 0; }
 
 function setupCentralPortal() {
   const ss = SpreadsheetApp.getActive();
@@ -59,6 +59,7 @@ function centralPortalDispatch(body) {
   const team = portalTeam(admission, code); if (!team.ok) return team;
   if (body.action === 'portalLookup') return { ok:true, dashboard: portalDashboard(team.team) };
   if (body.action === 'submitMilestone') return submitPortalMilestone(team.team, body);
+  if (body.action === 'requestGradeReview') return submitGradeReview(team.team, body);
   return { ok:false, error:'Unsupported portal request.' };
 }
 
@@ -129,7 +130,66 @@ function portalDashboard(team) {
     }
     return {published:false};
   };
-  return {finalEvidence:{ready:finalEvidenceReady(h)},team,milestones:PORTAL_STEPS.map(step=>milestone(step,stepLabel(step))),latestRepositoryUrl:step1?step1[ix('Repository URL')]:(legacyStep1?legacyStep1.repositoryUrl:'') ,evaluations:Object.fromEntries(PORTAL_STEPS.map(step=>[step,evaluationFor(step)])),presentationUploads:typeof presentationUploadStatus==='function'?presentationUploadStatus():{ready:false}};
+  return {gradeReviews:gradeReviewDashboard(team),finalEvidence:{ready:finalEvidenceReady(h)},team,milestones:PORTAL_STEPS.map(step=>milestone(step,stepLabel(step))),latestRepositoryUrl:step1?step1[ix('Repository URL')]:(legacyStep1?legacyStep1.repositoryUrl:'') ,evaluations:Object.fromEntries(PORTAL_STEPS.map(step=>[step,evaluationFor(step)])),presentationUploads:typeof presentationUploadStatus==='function'?presentationUploadStatus():{ready:false}};
+}
+
+const GRADE_REVIEW_SHEET = 'Grade Review Requests';
+const GRADE_REVIEW_HEADERS = ['Request ID','Requested At','Team ID','Team Name','Leader Admission Number','Project ID','Step','Submission Version','Request Type','Student Message','Evidence URL','Grade At Request','Evaluation Snapshot','Status','Faculty Response','Responded At','Client Request ID'];
+const GRADE_REVIEW_TYPES = {GRADE:'Marks or grade',FEEDBACK:'Feedback clarification',UPDATED_WORK:'Updated work for reassessment',LATE_DEDUCTION:'Late deduction'};
+
+function gradeReviewTable() {
+  const sheet=SpreadsheetApp.getActive().getSheetByName(GRADE_REVIEW_SHEET);
+  if(!sheet || sheet.getLastRow()<1) return null;
+  const rows=sheet.getDataRange().getDisplayValues(),h=rows[0];
+  return GRADE_REVIEW_HEADERS.every((name,i)=>h[i]===name)?{sheet,rows}:null;
+}
+
+function gradeReviewDashboard(team) {
+  const table=gradeReviewTable();
+  if(!table) return {ready:false,requests:[]};
+  return {ready:true,requests:table.rows.slice(1).filter(r=>r[2]===team.id).map(r=>({id:r[0],requestedAt:r[1],step:r[6],type:r[8],message:r[9],evidenceUrl:r[10],grade:r[11],status:r[13],response:r[14]||'',respondedAt:r[15]||''})).reverse()};
+}
+
+function submitGradeReview(team,body) {
+  const step=String(body.step||'');
+  if(!PORTAL_STEPS.includes(step)) return {ok:false,error:'Choose a valid graded step.'};
+  const category=String(body.reviewType||'');
+  if(!Object.prototype.hasOwnProperty.call(GRADE_REVIEW_TYPES,category)) return {ok:false,error:'Choose the reason for your request.'};
+  const concern=typeof body.concern==='string'?body.concern.trim():'';
+  if(concern.length<20 || concern.length>1500) return {ok:false,error:'Explain your concern or changes in 20 to 1500 characters.'};
+  const clientId=String(body.requestId||'');
+  if(!/^[A-Za-z0-9_-]{8,120}$/.test(clientId)) return {ok:false,error:'Refresh the page and send the request again.'};
+  let evidenceUrl='';
+  try {if(body.evidenceUrl) evidenceUrl=validatePublicEvidenceUrl(body.evidenceUrl,'Evidence link');}
+  catch(error){return {ok:false,error:error.message};}
+  const lock=LockService.getScriptLock();
+  let saved=false;
+  try {
+    lock.waitLock(30000);
+    const table=gradeReviewTable();
+    if(!table) return {ok:false,error:'Grade-review recording is being configured. Please try again later.'};
+    const existing=table.rows.slice(1).find(r=>r[2]===team.id&&r[16]===clientId);
+    if(existing) {
+      if(existing[6]!==step) return {ok:false,error:'Refresh your dashboard before sending this request.'};
+      return {ok:true,message:'Your request is already recorded.',dashboard:portalDashboard(team)};
+    }
+    const dashboard=portalDashboard(team),feedback=dashboard.evaluations[step]||{};
+    if(!feedback.published || !String(feedback.score||'').trim()) return {ok:false,error:'You can request a review after a grade is published for this step.'};
+    if(String(body.scoreAtView||'')!==String(feedback.score)) return {ok:false,error:'This grade has changed. Reopen your dashboard, read the latest feedback and try again.'};
+    const pending=table.rows.slice(1).find(r=>r[2]===team.id&&r[6]===step&&!['RESPONDED','CLOSED'].includes(String(r[13]).toUpperCase()));
+    if(pending) return {ok:true,message:'A request for this step is already awaiting review. Its status is shown below.',dashboard};
+    const ss=SpreadsheetApp.getActive(),subRows=ss.getSheetByName(PORTAL.submissions).getDataRange().getDisplayValues();
+    const versions=subRows.slice(1).filter(r=>r[1]===team.id&&r[2]===step).map(r=>Number(r[3])||0);
+    const version=versions.length?Math.max(...versions):'Legacy Step 1';
+    const id=Utilities.getUuid();
+    table.sheet.appendRow([id,new Date(),team.id,team.teamName,team.admissionNumber,team.projectId,step,version,GRADE_REVIEW_TYPES[category],concern,evidenceUrl,String(feedback.score),JSON.stringify(feedback),'PENDING','','',clientId].map(portalTextCell));
+    saved=true;
+    try {ss.getSheetByName(PORTAL.audit).appendRow([new Date(),team.id,'GRADE_REVIEW_REQUEST',step+' '+id]);}
+    catch(error){console.error('Grade review saved; audit logging failed: '+error);}
+    return {ok:true,message:'Your grade-review request has been recorded. You can check its status and the faculty reply here.',dashboard:portalDashboard(team)};
+  } catch(error) {
+    return {ok:false,error:saved?'Your request was recorded. Reopen your dashboard before retrying.':(error.message||'The request could not be saved. Please try again.')};
+  } finally {try{lock.releaseLock();}catch(error){/* No lock was acquired. */}}
 }
 
 function validateProductEvidence(body) {

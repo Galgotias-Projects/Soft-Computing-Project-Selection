@@ -10,3 +10,6 @@ fieldset > input[type="url"]{width:100%;min-width:0;margin:6px 0 10px}#final-evi
 #evaluation.status-revision,#evaluation.status-accepted,#evaluation.status-missing{padding:16px;border-radius:10px}
 .milestone.selected{outline:3px solid var(--gold);outline-offset:2px}
 .status-key{font-size:.9rem;color:var(--muted)}
+#grade-review-panel{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
+.review-request{border:1px solid var(--line);border-radius:8px;background:#f4f7fb;padding:12px;margin-top:14px;overflow-wrap:anywhere}
+.review-request p{margin:6px 0;font-size:.94rem}#grade-review-panel textarea{width:100%;min-width:0}

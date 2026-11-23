@@ -75,6 +75,28 @@ function milestoneTone(item, feedback = {}) {
   return '';
 }
 
+function renderGradeReview(data, feedback, step) {
+  if(state.reviewStep!==step) {
+    state.reviewStep=step;
+    for(const id of ['grade-review-type','grade-review-concern','grade-review-evidence']) $('#'+id).value='';
+    message('#grade-review-result','');
+  }
+  const graded=feedback.published && String(feedback.score ?? '').trim()!=='';
+  $('#grade-review-panel').hidden=!graded;
+  if(!graded) return;
+  const service=data.gradeReviews || {ready:false,requests:[]};
+  const requests=(service.requests || []).filter(r=>r.step===step);
+  const pending=requests.some(r=>!['RESPONDED','CLOSED'].includes(String(r.status).toUpperCase()));
+  $('#grade-review-form').hidden=pending;
+  $('#send-grade-review').disabled=!service.ready;
+  $('#grade-review-help').textContent=!service.ready
+    ? 'Grade-review requests are being enabled. Refresh this page shortly.'
+    : pending ? 'Your request is awaiting review. Check its status and the faculty reply below.'
+    : 'Explain your concern, a question about the feedback, or the fixes you made. Add a link to the exact files or commit where possible. Faculty will review the evidence; sending a request does not change the grade automatically.';
+  const labels={PENDING:'Pending review',IN_REVIEW:'Being reviewed',RESPONDED:'Faculty replied',CLOSED:'Closed'};
+  $('#grade-review-history').innerHTML=requests.slice(0,5).map(r=>`<article class="review-request"><p><strong>${escapeHtml(labels[r.status] || 'Pending review')}</strong> · ${escapeHtml(r.requestedAt)} · ${escapeHtml(r.type)}</p><p>${escapeHtml(r.message)}</p>${r.evidenceUrl ? `<p><a href="${escapeHtml(r.evidenceUrl)}" target="_blank" rel="noopener">Supporting evidence</a></p>` : ''}<p>Grade when requested: ${escapeHtml(r.grade)} · Request ${escapeHtml(r.id)}</p>${r.response ? `<p><strong>Faculty reply:</strong> ${escapeHtml(r.response)}</p>` : ''}</article>`).join('');
+}
+
 function renderDashboard(data) {
   state.dashboard = data;
   $('#project-title').textContent = `${data.team.projectId} · ${data.team.projectTitle}`;
@@ -133,7 +155,32 @@ function renderDashboard(data) {
   $('#evaluation').innerHTML = feedback.published
     ? `<p class="status ${escapeHtml(String(feedback.status || '').toLowerCase())}">${escapeHtml(String(feedback.status || '').replaceAll('_', ' '))}${feedback.score ? ` · ${escapeHtml(feedback.score)}` : ''}</p><p><b>Expected:</b> ${escapeHtml(String(feedback.comment || '—').replace(/^Expected:\s*/i, ''))}</p><p><b>What is done:</b> ${escapeHtml(feedback.good || '—')}</p><p><b>What needs attention:</b> ${escapeHtml(feedback.improve || '—')}</p><p><b>Required action:</b> ${escapeHtml(feedback.nextAction || '—')}</p>`
     : `<p>No evaluation has been published for ${escapeHtml(selected.label)} yet.</p>`;
+  renderGradeReview(data, feedback, selected.step);
 }
+
+$('#grade-review-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button=$('#send-grade-review');
+  if(button.disabled) return;
+  const concern=$('#grade-review-concern').value.trim();
+  if(concern.length<20 || concern.length>1500) return message('#grade-review-result','Explain your concern or changes in 20 to 1500 characters.');
+  button.disabled=true;button.textContent='Sending request…';
+  const step=state.selectedStep,reviewType=$('#grade-review-type').value,evidenceUrl=$('#grade-review-evidence').value.trim();
+  const signature=JSON.stringify([step,reviewType,concern,evidenceUrl]);
+  if(state.reviewSignature!==signature) {
+    state.reviewSignature=signature;
+    state.reviewRequestId=window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+  try {
+    const result=await api('requestGradeReview',{admissionNumber:state.admissionNumber,accessCode:state.accessCode,step,reviewType,concern,evidenceUrl,scoreAtView:state.dashboard?.evaluations?.[step]?.score,requestId:state.reviewRequestId});
+    state.reviewSignature='';state.reviewRequestId='';
+    $('#grade-review-form').reset();
+    state.selectedStep=step;
+    renderDashboard(result.dashboard);
+    message('#grade-review-result',result.message,'success');
+  } catch(error){message('#grade-review-result',error.message);}
+  finally{button.textContent='Send review request';button.disabled=state.dashboard?.gradeReviews?.ready!==true;}
+});
 
 $('#lookup-form').addEventListener('submit', async (event) => {
   event.preventDefault(); message('#lookup-message', 'Retrieving team details…', 'success');
@@ -197,5 +244,5 @@ $('#reuse-presentation').addEventListener('change', () => {
   $('#presentation-file').required = !reuse;
   if (reuse) $('#presentation-file').value = '';
 });
-$('#sign-out').addEventListener('click', () => { $('#dashboard').hidden = true; $('#lookup-card').hidden = false; $('#lookup-form').reset(); $('#submission-form').reset(); message('#lookup-message', ''); message('#submission-message', ''); state.admissionNumber = ''; state.accessCode = ''; state.selectedStep = 'STEP_1'; state.dashboard = null; });
+$('#sign-out').addEventListener('click', () => { $('#dashboard').hidden = true; $('#lookup-card').hidden = false; $('#lookup-form').reset(); $('#submission-form').reset(); $('#grade-review-form').reset(); message('#lookup-message', ''); message('#submission-message', ''); message('#grade-review-result',''); state.reviewStep='';state.reviewSignature='';state.reviewRequestId=''; state.admissionNumber = ''; state.accessCode = ''; state.selectedStep = 'STEP_1'; state.dashboard = null; });
 

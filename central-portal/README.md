@@ -24,3 +24,5 @@ The Step 5 student instructions are in [`step-5-guide.html`](./step-5-guide.html
 
 Add one row per team and step to the private `Evaluation` sheet. Use `Published=TRUE` only when feedback is ready for students. Feedback for every step uses the same table; no new evaluation tab is needed. The step’s published evaluation appears after the team's next dashboard refresh.
 
+Each published graded step also shows **Request a review of this grade**. Requests and evidence are saved in **Grade Review Requests**, along with the grade and feedback at request time. Filter column N to `PENDING`, record a faculty reply in O, enter its date in P and set N to `RESPONDED` or `CLOSED`. Update the Evaluation row separately when reassessment changes a grade. See `google-apps-script/GRADE-REVIEW-DEPLOYMENT.md` for the exact schema and tests.
+

@@ -2,6 +2,10 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const elements=new Map();function el(id){if(!elements.has(id))elements.set(id,{hidden:false,disabled:false,innerHTML:'',textContent:'',addEventListener(){}});return elements.get(id)}
 const ctx=vm.createContext({window:{PORTAL_CONFIG:{}},document:{querySelector:s=>el(s.slice(1))}});
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../central-portal/app.js'),'utf8'),ctx);
+const css=fs.readFileSync(path.join(__dirname,'../central-portal/styles.css'),'utf8');
+assert.ok(css.includes('form[hidden]{display:none}'),'Pending forms must remain hidden despite the form grid style');
+const source=fs.readFileSync(path.join(__dirname,'../central-portal/app.js'),'utf8');
+assert.ok(source.includes('form.hidden = true;')&&source.includes("input.type = 'hidden';"),'Transport payload must not appear as a visible input');
 let checks=0;const check=(v,m)=>{assert.ok(v,m);checks++};
 const data={gradeReviews:{ready:true,requests:[]}};
 ctx.renderGradeReview(data,{published:false,score:'8/10'},'STEP_1');check(el('grade-review-panel').hidden,'Unpublished grade hidden');

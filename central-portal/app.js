@@ -37,6 +37,8 @@ function api(action, payload = {}) {
 
     frame.name = `portal-transport-${requestId}`;
     frame.hidden = true;
+    form.hidden = true;
+    input.type = 'hidden';
     form.method = 'post';
     form.action = config.apiUrl;
     form.target = frame.name;

@@ -64,6 +64,17 @@ function escapeHtml(value) {
   return String(value || '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
 }
 
+function milestoneTone(item, feedback = {}) {
+  // Upcoming deadlines retain the normal appearance, including unsubmitted work.
+  if (item.active === false || !item.hasDeadline || !(Number(item.overdueDays) > 0)) return '';
+  if (item.status === 'NOT_SUBMITTED') return 'status-missing';
+  if (!feedback.published) return '';
+  const status = String(feedback.status || '').trim().toLowerCase().replaceAll('_', ' ');
+  if (/revision|improv|revise/.test(status)) return 'status-revision';
+  if (/^(provisionally )?accepted$/.test(status)) return 'status-accepted';
+  return '';
+}
+
 function renderDashboard(data) {
   state.dashboard = data;
   $('#project-title').textContent = `${data.team.projectId} · ${data.team.projectTitle}`;
@@ -71,7 +82,8 @@ function renderDashboard(data) {
   $('#repository-url').value = ''; // Always require a fresh repository URL for the selected step.
   const timeline = $('#timeline'); timeline.innerHTML = '';
   data.milestones.forEach((item) => {
-    const button = document.createElement('button'); button.type = 'button'; button.className = `milestone ${item.step === state.selectedStep ? 'selected' : ''}`;
+    const feedback = (data.evaluations || {})[item.step] || {};
+    const button = document.createElement('button'); button.type = 'button'; button.className = `milestone ${milestoneTone(item, feedback)} ${item.step === state.selectedStep ? 'selected' : ''}`;
     button.innerHTML = `<strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(dueText(item, (data.evaluations || {})[item.step]))}</span>`;
     button.addEventListener('click', () => { state.selectedStep = item.step; $('#submission-form').reset(); message('#submission-message', ''); renderDashboard(state.dashboard); });
     timeline.append(button);
@@ -117,6 +129,7 @@ function renderDashboard(data) {
   $('#submit-work').disabled = !selected.accepting || (needsPresentation && (!uploadReady || !finalReady));
   $('#deadline-notes').innerHTML = data.milestones.map((item) => `<li><strong>${escapeHtml(item.label)}:</strong> ${escapeHtml(item.deadlineDisplay)}${item.hasDeadline ? ' IST' : ''}. ${item.accepting ? 'Submissions open.' : escapeHtml(item.blockedReason || 'Submissions unavailable.')}</li>`).join('');
   const feedback = (data.evaluations || {})[selected.step] || {};
+  $('#evaluation').className = milestoneTone(selected, feedback);
   $('#evaluation').innerHTML = feedback.published
     ? `<p class="status ${escapeHtml(String(feedback.status || '').toLowerCase())}">${escapeHtml(String(feedback.status || '').replaceAll('_', ' '))}${feedback.score ? ` · ${escapeHtml(feedback.score)}` : ''}</p><p><b>Expected:</b> ${escapeHtml(String(feedback.comment || '—').replace(/^Expected:\s*/i, ''))}</p><p><b>What is done:</b> ${escapeHtml(feedback.good || '—')}</p><p><b>What needs attention:</b> ${escapeHtml(feedback.improve || '—')}</p><p><b>Required action:</b> ${escapeHtml(feedback.nextAction || '—')}</p>`
     : `<p>No evaluation has been published for ${escapeHtml(selected.label)} yet.</p>`;

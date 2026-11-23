@@ -3,3 +3,10 @@
 fieldset{border:1px solid var(--line);border-radius:10px;padding:16px;margin:16px 0}legend{font-weight:700;padding:0 6px}select{width:100%;padding:12px;border:1px solid var(--line);border-radius:8px;font:inherit;background:white}.check{display:flex;align-items:flex-start;gap:10px;font-weight:400}.check input{width:auto;flex:none;margin-top:5px}#step-expectations{padding:12px;background:#eef4fa;border-radius:8px}.timeline{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))}
 .check[hidden]{display:none}
 fieldset > input[type="url"]{width:100%;min-width:0;margin:6px 0 10px}#final-evidence-fields > label{margin-top:12px}
+.milestone.status-revision,#evaluation.status-revision{background:#fff4c2;border:1px solid #b78812;color:#513e00}
+.milestone.status-accepted,#evaluation.status-accepted{background:#e3f5e8;border:1px solid #298149;color:#124b28}
+.milestone.status-missing,#evaluation.status-missing{background:#fde7e9;border:1px solid #bd3648;color:#771b28}
+.milestone.status-revision span,.milestone.status-accepted span,.milestone.status-missing span{color:inherit}
+#evaluation.status-revision,#evaluation.status-accepted,#evaluation.status-missing{padding:16px;border-radius:10px}
+.milestone.selected{outline:3px solid var(--gold);outline-offset:2px}
+.status-key{font-size:.9rem;color:var(--muted)}

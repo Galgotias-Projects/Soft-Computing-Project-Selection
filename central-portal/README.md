@@ -26,3 +26,7 @@ Add one row per team and step to the private `Evaluation` sheet. Use `Published=
 
 Each published graded step also shows **Request a review of this grade**. Requests and evidence are saved in **Grade Review Requests**, along with the grade and feedback at request time. Filter column N to `PENDING`, record a faculty reply in O, enter its date in P and set N to `RESPONDED` or `CLOSED`. Update the Evaluation row separately when reassessment changes a grade. See `google-apps-script/GRADE-REVIEW-DEPLOYMENT.md` for the exact schema and tests.
 
+
+## Final presentation schedule
+
+Section 32 presents on 13 December 2026, 10:15-11:55 IST; Section 33 on 14 December 2026, 14:35-16:20 IST. Attendance is mandatory for every member; an absent student receives zero for the project presentation. Teams bring at most eight slides, with the university logo taken from the lecture PPTs, and finish within ten minutes. Project performance/presentation carries 25 marks; the other 25 are based on each student's assignment and quiz submissions. The 29 November Step 7 and 6 December Step 8 deadlines are unchanged. The reference deck and matching reading PDF contain the lecture logo.
